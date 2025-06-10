@@ -1,0 +1,29 @@
+- op: add
+  path: /webhooks/0/namespaceSelector
+  value:
+    matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: NotIn
+        values:
+          - cert-manager
+          - kube-node-lease
+          - kube-public
+          - kube-system
+          - kubemacpool-system
+          - kubelet-serving-cert-approver
+          - kubevirt
+          - letsencrypt
+          - eventus
+          - fluent
+          - kyverno
+          - metallb-system
+          - monitoring
+          - rook-ceph
+          - falco
+          - prometheus-operator
+          - prometheus-blackbox-exporter
+          - trivy-system
+          - ipam-system
+- op: replace
+  path: /webhooks/0/failurePolicy
+  value: Fail

@@ -1,0 +1,89 @@
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: mutating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+      url: https://host.docker.internal:9443/mutate--v1-service
+      caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUR0VENDQXAyZ0F3SUJBZ0lVWExYT1lGOFBFYXNRMWZNQ3B3ODJjYnkxdHlzd0RRWUpLb1pJaHZjTkFRRUwKQlFBd1ZERUxNQWtHQTFVRUJoTUNUazh4RWpBUUJnTlZCQWdNQ1ZSU1QwNUVSVXhCUnpFU01CQUdBMVVFQnd3SgpWSEp2Ym1Sb1pXbHRNUjB3R3dZRFZRUUREQlJvYjNOMExtUnZZMnRsY2k1cGJuUmxjbTVoYkRBZUZ3MHlOVEEyCk1EZ3dOekkxTVRsYUZ3MHlOakEyTURnd056STFNVGxhTUZReEN6QUpCZ05WQkFZVEFrNVBNUkl3RUFZRFZRUUkKREFsVVVrOU9SRVZNUVVjeEVqQVFCZ05WQkFjTUNWUnliMjVrYUdWcGJURWRNQnNHQTFVRUF3d1VhRzl6ZEM1awpiMk5yWlhJdWFXNTBaWEp1WVd3d2dnRWlNQTBHQ1NxR1NJYjNEUUVCQVFVQUE0SUJEd0F3Z2dFS0FvSUJBUURMCjJVbEc5YzB2RURRb0Z6bFpMRWV5NEJGYVh2VFk2NmdlUGVOY0R0VVNSYnNvZEwrSCtFNEw0RGZhR29rMmdTNGUKU2cycW1RUmhtSCsrR3loUzlsUWFtNXVhaVVMOWtJSUlVYmhSSWVMdURtYUFTSGNWeEdMTTNsSnhXeENGYlJnZwoyNks2OWZ5TTJYUGZZUkRVQ2Z3UW45aG8vdWdFN2hlcDYrR0tNdG5TMm1hamlrZjNZbWRqTStWbUdGZVp1TEdZCnNPM2drSWZacWRtMTdxZTg4eWdTMGRlRHVsZEViY1BsYU04ZkFOWEovS2JkUEUyakxvQzlUUUNMaHF2Nm5FWDQKazJuZUk5OWtpb3FHUlBlSnZwY3hCZFhnVFUyQVhqTU02VUpTQWZaSW5JMnhFVFptNmUyWXVxam4rY243R0xuUQpoS3c0ZFE3RlB5V2pJTWxiaG9EYkFnTUJBQUdqZnpCOU1CMEdBMVVkRGdRV0JCUm16ZDRIYW9kMFpNR0hia0VMCmhBTklScXh5VXpBZkJnTlZIU01FR0RBV2dCUm16ZDRIYW9kMFpNR0hia0VMaEFOSVJxeHlVekFQQmdOVkhSTUIKQWY4RUJUQURBUUgvTUNvR0ExVWRFUVFqTUNHQ0NXeHZZMkZzYUc5emRJSVVhRzl6ZEM1a2IyTnJaWEl1YVc1MApaWEp1WVd3d0RRWUpLb1pJaHZjTkFRRUxCUUFEZ2dFQkFFbnZIcElnaEhwNkk3dFRjakhWalNxVDU5amI3LzdEClQxL2hOcWpIOVFqZjNvYlh4ejhmSDQ1SVllcFF3bTVGeExyRlU0azROSWM0Ny92WFYyeExrRGdXN1dkc2lPelQKRTJSMjlXQmUvM1dBc0RHaUpuWGc1Ry9ydUpPM2U4MFJwZHZpNDhCTHptTWhKRFo3dzM4cDQ0MGxlR2dOcFV0Tgo5OWpsM0UwT1hobytTRW1CeHU1Y2piYklBbHlBa0pXVWhpMzRpZFl4LzJsbUczaG8zNVExU25HR3hRSzlRd2JVCnVmY3h0V0gycCtoSU52T21UNzltQW9qcXRJbkN2aDdiaGpCcEZLLzIzemYwTUlwcDFweXd0Q0VNbndLbVUxOVQKcHNTcFo0NCtjQUhuMlJXVFpXQzl4Ym9MM2RGTmxFdnNqMnZJWExXZEtXdGpCakljTXRDNnZmcz0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  failurePolicy: Fail
+  name: host.docker.internal
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - services
+  sideEffects: NoneOnDryRun
+  namespaceSelector:
+    matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: NotIn
+        values:
+          - cert-manager
+          - kube-node-lease
+          - kube-public
+          - kube-system
+          - kubemacpool-system
+          - kubelet-serving-cert-approver
+          - kubevirt
+          - eventus
+          - fluent
+          - kyverno
+          - metallb-system
+          - monitoring
+          - rook-ceph
+          - falco
+          - trivy-system
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: validating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  name: host.docker.internal
+  clientConfig:
+      url: https://host.docker.internal:9443/validate--v1-service
+      caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUR0VENDQXAyZ0F3SUJBZ0lVWExYT1lGOFBFYXNRMWZNQ3B3ODJjYnkxdHlzd0RRWUpLb1pJaHZjTkFRRUwKQlFBd1ZERUxNQWtHQTFVRUJoTUNUazh4RWpBUUJnTlZCQWdNQ1ZSU1QwNUVSVXhCUnpFU01CQUdBMVVFQnd3SgpWSEp2Ym1Sb1pXbHRNUjB3R3dZRFZRUUREQlJvYjNOMExtUnZZMnRsY2k1cGJuUmxjbTVoYkRBZUZ3MHlOVEEyCk1EZ3dOekkxTVRsYUZ3MHlOakEyTURnd056STFNVGxhTUZReEN6QUpCZ05WQkFZVEFrNVBNUkl3RUFZRFZRUUkKREFsVVVrOU9SRVZNUVVjeEVqQVFCZ05WQkFjTUNWUnliMjVrYUdWcGJURWRNQnNHQTFVRUF3d1VhRzl6ZEM1awpiMk5yWlhJdWFXNTBaWEp1WVd3d2dnRWlNQTBHQ1NxR1NJYjNEUUVCQVFVQUE0SUJEd0F3Z2dFS0FvSUJBUURMCjJVbEc5YzB2RURRb0Z6bFpMRWV5NEJGYVh2VFk2NmdlUGVOY0R0VVNSYnNvZEwrSCtFNEw0RGZhR29rMmdTNGUKU2cycW1RUmhtSCsrR3loUzlsUWFtNXVhaVVMOWtJSUlVYmhSSWVMdURtYUFTSGNWeEdMTTNsSnhXeENGYlJnZwoyNks2OWZ5TTJYUGZZUkRVQ2Z3UW45aG8vdWdFN2hlcDYrR0tNdG5TMm1hamlrZjNZbWRqTStWbUdGZVp1TEdZCnNPM2drSWZacWRtMTdxZTg4eWdTMGRlRHVsZEViY1BsYU04ZkFOWEovS2JkUEUyakxvQzlUUUNMaHF2Nm5FWDQKazJuZUk5OWtpb3FHUlBlSnZwY3hCZFhnVFUyQVhqTU02VUpTQWZaSW5JMnhFVFptNmUyWXVxam4rY243R0xuUQpoS3c0ZFE3RlB5V2pJTWxiaG9EYkFnTUJBQUdqZnpCOU1CMEdBMVVkRGdRV0JCUm16ZDRIYW9kMFpNR0hia0VMCmhBTklScXh5VXpBZkJnTlZIU01FR0RBV2dCUm16ZDRIYW9kMFpNR0hia0VMaEFOSVJxeHlVekFQQmdOVkhSTUIKQWY4RUJUQURBUUgvTUNvR0ExVWRFUVFqTUNHQ0NXeHZZMkZzYUc5emRJSVVhRzl6ZEM1a2IyTnJaWEl1YVc1MApaWEp1WVd3d0RRWUpLb1pJaHZjTkFRRUxCUUFEZ2dFQkFFbnZIcElnaEhwNkk3dFRjakhWalNxVDU5amI3LzdEClQxL2hOcWpIOVFqZjNvYlh4ejhmSDQ1SVllcFF3bTVGeExyRlU0azROSWM0Ny92WFYyeExrRGdXN1dkc2lPelQKRTJSMjlXQmUvM1dBc0RHaUpuWGc1Ry9ydUpPM2U4MFJwZHZpNDhCTHptTWhKRFo3dzM4cDQ0MGxlR2dOcFV0Tgo5OWpsM0UwT1hobytTRW1CeHU1Y2piYklBbHlBa0pXVWhpMzRpZFl4LzJsbUczaG8zNVExU25HR3hRSzlRd2JVCnVmY3h0V0gycCtoSU52T21UNzltQW9qcXRJbkN2aDdiaGpCcEZLLzIzemYwTUlwcDFweXd0Q0VNbndLbVUxOVQKcHNTcFo0NCtjQUhuMlJXVFpXQzl4Ym9MM2RGTmxFdnNqMnZJWExXZEtXdGpCakljTXRDNnZmcz0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  failurePolicy: Fail
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    resources:
+    - services
+  sideEffects: None
+  namespaceSelector:
+    matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: NotIn
+        values:
+          - cert-manager
+          - kube-node-lease
+          - kube-public
+          - kube-system
+          - kubemacpool-system
+          - kubelet-serving-cert-approver
+          - kubevirt
+          - eventus
+          - fluent
+          - kyverno
+          - metallb-system
+          - monitoring
+          - rook-ceph
+          - falco
+          - trivy-system          

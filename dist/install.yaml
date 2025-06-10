@@ -1,0 +1,629 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ipam
+    control-plane: controller-manager
+  name: ipam-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ipam
+  name: ipam-controller-manager
+  namespace: ipam-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ipam
+  name: ipam-leader-election-role
+  namespace: ipam-system
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ipam
+  name: ipam-manager-role
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - secrets
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+- apiGroups:
+  - '*'
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - metallb.io
+  resources:
+  - ipaddresspools
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ipam-metrics-auth-role
+rules:
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ipam-metrics-reader
+rules:
+- nonResourceURLs:
+  - /metrics
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ipam
+  name: ipam-leader-election-rolebinding
+  namespace: ipam-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ipam-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: ipam-controller-manager
+  namespace: ipam-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ipam
+  name: ipam-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ipam-manager-role
+subjects:
+- kind: ServiceAccount
+  name: ipam-controller-manager
+  namespace: ipam-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ipam-metrics-auth-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ipam-metrics-auth-role
+subjects:
+- kind: ServiceAccount
+  name: ipam-controller-manager
+  namespace: ipam-system
+---
+apiVersion: v1
+data:
+  ca-bundle.crt: |
+    -----BEGIN CERTIFICATE-----
+    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
+    -----END CERTIFICATE-----
+    -----BEGIN CERTIFICATE-----
+    MIIFTTCCAzWgAwIBAgITGAAAAAdRpkfWJQOgWQAAAAAABzANBgkqhkiG9w0BAQsF
+    ADBJMQswCQYDVQQGEwJOTzEbMBkGA1UEChMSTm9yc2sgSGVsc2VuZXR0IFNGMR0w
+    GwYDVQQDExROSE4gSW50ZXJuYWwgUm9vdCBDQTAeFw0yNDA0MTYwOTE2MzlaFw0z
+    NDA0MTYwOTE2MzlaMEwxCzAJBgNVBAYTAk5PMRswGQYDVQQKExJOb3JzayBIZWxz
+    ZW5ldHQgU0YxIDAeBgNVBAMTF05ITiBJbnRlcm5hbCBDQSAtIERSSUZUMIIBIjAN
+    BgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyX2gSA7DHBMsND9/UhMB9N2pLmA3
+    k4f9QRkj/5DlWRNREEwLjm+HaMGGoA1iGl/Jh+YjJ8GwOimw0d7H5GFKMGoIm2YN
+    ZanCaCHGJu3jYtaulI9nxFsTFuHFSLqG9CHT1oRBasUECre5NmhH8rcUovEIkAAJ
+    FditqdXdfUOSydJwBVapmlWMJwus/JCErYRaTmmXx/cX2qooxe91qRSdk5QDsPdL
+    srhmVy1WsBdqE9qjvWJ93IEyKAb9zJl+81iCx5WZgvdATEDo3cvCNBTSs5DLXS8D
+    OWAa9eGKInfxZfj2fCtapdGO3jtuL5S6+WeOGjkUxgP4XSRNunZLxVaWMQIDAQAB
+    o4IBKTCCASUwEgYJKwYBBAGCNxUBBAUCAwIAAjAjBgkrBgEEAYI3FQIEFgQUHgCY
+    00RVEc+eCOi0GIdfd7X87bIwHQYDVR0OBBYEFD6pd6xgqjPNQGBtD2KcmJLWCb9f
+    MA4GA1UdDwEB/wQEAwIBBjASBgNVHRMBAf8ECDAGAQH/AgEAMB8GA1UdIwQYMBaA
+    FLfegx3OGCHyCvTfp1blsXciOhJ+MDwGA1UdHwQ1MDMwMaAvoC2GK2h0dHA6Ly9j
+    cmwubmhuLm5vL2NybC9OSE5JbnRlcm5hbFJvb3RDQS5jcmwwSAYIKwYBBQUHAQEE
+    PDA6MDgGCCsGAQUFBzAChixodHRwOi8vY3JsLm5obi5uby9jZXJ0L05ITkludGVy
+    bmFsUm9vdENBLmNydDANBgkqhkiG9w0BAQsFAAOCAgEAs5Rwing0i45/ao5qz+mU
+    g+SowT1GrnvF2nPlPOvNZVf8jfA+VCEVELj6n85Ogv/BSDr6N0jSegp80qOHlnIO
+    Pa3insNksVZjzr2bldnJR+v5k13UaUi+6ZtC/YCwnVkhTmEzcJrUEo1Cv6uXDfIb
+    wDnduv5QHE7orWxevAd7xLW2073Hpd68r+EQt/ykk2iUCdCuR+8TzNBycWw8J5v3
+    vR0vKctScYFFlyOPNfzLyibtR/CG9tuCbLL6eM+iaSaiVqLy9yiMpL+qi7ZlY6wc
+    G8IWkonJgJ7rkOYeKv+80E+3ML4YzjjVG2UvEgSLXjfrVTIEvAp25poIdbBlMzUZ
+    WZx79irQFdz3jGsOGHv/EF2jahbhxO8nQz1nmdkOYI4vWVsFMzl04g53tunMAdea
+    TuxOZUA1GXd2y3lshumxsX8w0Al6QQrE7pgzjdong4HQKBXoS4lBn3f8IfT8bYi4
+    ZMnAusTW5o/LoveKBudsYqIONZ/f8KuE87illyGTCVq0zECYqjQEyhQ1Zj9dEu7U
+    TaGooaraolGNMsqc+glyFbZuwHOnZXmPj2nu+4AYgyqX+o5pv5wrKRAbrA+E+zwe
+    YVys4tX8INCwj5v6QReDGOMN/TUsW8Dv0QczuwXQFIyFJuejocAUEq9HHPLy3MSw
+    rOAAZHgefwrN8hvEVQutjgY=
+    -----END CERTIFICATE-----
+    -----BEGIN CERTIFICATE-----
+    MIIFTDCCAzSgAwIBAgITGAAAAAjRZ0S8YG+B9gAAAAAACDANBgkqhkiG9w0BAQsF
+    ADBJMQswCQYDVQQGEwJOTzEbMBkGA1UEChMSTm9yc2sgSGVsc2VuZXR0IFNGMR0w
+    GwYDVQQDExROSE4gSW50ZXJuYWwgUm9vdCBDQTAeFw0yNDA0MTYwOTIyMDBaFw0z
+    NDA0MTYwOTIyMDBaMEsxCzAJBgNVBAYTAk5PMRswGQYDVQQKExJOb3JzayBIZWxz
+    ZW5ldHQgU0YxHzAdBgNVBAMTFk5ITiBJbnRlcm5hbCBDQSAtIFBST0QwggEiMA0G
+    CSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC8IpCRimwk9Cgbk5lrxqchL+Dh/L/q
+    ond6uNbYJ4zRl2qb/ovJBVQZxxOE/1aKBywpL9o23gliGmkda6ccuxuFfJOazvAe
+    gscbm7HEMbqXNjzLNt0FJetHn+VUokxCygugIBfiKyBaQ3dMOQYOf+EROLVtSm0R
+    V4dchWEFSK7aMEHu2tnoY1UVN3lCcoANbtDifMA3akkVJ0FJ6ESrvdJ09lc4Hurn
+    0uqrhY9UTCTMn24dKdbhjUA5xOAVT7We5TfwYmXCn8367njEmlIwGju5G/1DmVBI
+    PuzYvvjBWyIi3P8vmXYnVdEAPwJugjqgyruPDJC4y3asWufz9pdXYCdFAgMBAAGj
+    ggEpMIIBJTASBgkrBgEEAYI3FQEEBQIDAgACMCMGCSsGAQQBgjcVAgQWBBTaKUi3
+    627eyMJpF7XYYfDiy2A7SjAdBgNVHQ4EFgQU8P3tI/yKQiqsQREgUiIhiEe+vV0w
+    DgYDVR0PAQH/BAQDAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQAwHwYDVR0jBBgwFoAU
+    t96DHc4YIfIK9N+nVuWxdyI6En4wPAYDVR0fBDUwMzAxoC+gLYYraHR0cDovL2Ny
+    bC5uaG4ubm8vY3JsL05ITkludGVybmFsUm9vdENBLmNybDBIBggrBgEFBQcBAQQ8
+    MDowOAYIKwYBBQUHMAKGLGh0dHA6Ly9jcmwubmhuLm5vL2NlcnQvTkhOSW50ZXJu
+    YWxSb290Q0EuY3J0MA0GCSqGSIb3DQEBCwUAA4ICAQA3ynTfDUWwIGlarH2YIZa6
+    ZQ0WNRoKZvw28sT0pBwE6TPQiUKLlCdpV0n8axGgpKwFR8wsCALUqqLxIxEszP5Z
+    MuLnkv5MRXVXIPHgRZV2VKeyyQWPPJgdhCsqtFgHw4Nm2aGrNFuSpI6D7ZdrYXnb
+    zWuXVHhKRsSGmq+MU3sLmnw7/w5qgd65AkoHOUPKgz73z9doOBb/RXlIt88qIyyc
+    oIaVMbBIuiLpTCwIoRXXruoiAA1jZpR+Cr9QHxxjnHTmGia7m258Etn7MycjIZ3F
+    Lq4VcfJvrJfB2dnBNWRz/8lsZxPC9IH0gXSVM6eIqIV4LHc5SETnJwVIMfsheyso
+    zRPqSATN4Kvj116u2PTWJyHUjsOCpQeMXVqiJ8I2thsUOzbREZDfcAkfvqLVlMV/
+    7ep6WM81Ih8/2cNwDWhBNr/vIHqOgF9VjgbXZl3FokwD7PPaw+nk9/frV7J8K9lD
+    d3gjdswziIkvMxyYxe4P6nTbB/yoYd8CDU6J1NV2OH4NgTFNNyNFb+01cVCLNaLU
+    xeRCs1ZFw6O0P/WSuFHYAL6cDY1NzMkn4YCXjlKAunlRuBn/OEOeAVnyiMMp8i4R
+    kNI+8gQ9xFsosrz2ivB9YF/zBuVE9MOIeW7gHW2EgHpBGf0ITObKsmmav7hhDVng
+    1zbcKNPwC+MAShyGXl008w==
+    -----END CERTIFICATE-----
+    -----BEGIN CERTIFICATE-----
+    MIIFWTCCA0GgAwIBAgITRAAAABX1u2/m6j88aAAAAAAAFTANBgkqhkiG9w0BAQsF
+    ADBQMQswCQYDVQQGEwJOTzEbMBkGA1UEChMSTm9yc2sgSGVsc2VuZXR0IFNGMSQw
+    IgYDVQQDExtOSE4gSW50ZXJuYWwgUm9vdCBDQSAtIFRFU1QwHhcNMjQwMzE0MTE1
+    NDUxWhcNMzQwMzE0MTIwNDUxWjBJMQswCQYDVQQGEwJOTzEbMBkGA1UEChMSTm9y
+    c2sgSGVsc2VuZXR0IFNGMR0wGwYDVQQDExROSE4gSW50ZXJuYWwgQ0EgLSBRQTCC
+    ASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALPjyXq9HvWihyF81YOHUmmd
+    h6ifOM8hF6W23mjg6RaIRsIooPRIQaZlV/xeJBp00MzeHrnRI5jy8vtrkPKsDmyX
+    SEMSEF/Vj+Bhmx/3s8NPxcdEiF2/SGG5tRe2Q9POGNQdNJK2eBLI5YrtiEfZY4yp
+    gOaUcgE/R58gy0UCAA7KFvlu5pkf2h3hLUJh/irbx+lgn1NVcGEw2KQD3NNd+O1D
+    Eb+CdFPCzzcGaUXMaIFRqulXb9HYKfbkmL22XHH9bzTl02BXs977O0cbux6s56V2
+    sG8/VUn+z2m4bHWi8kxuTxJs7X0S/r+8WacrIG0mzObhPO77ISnOTl9H7JqlLzUC
+    AwEAAaOCATEwggEtMBIGCSsGAQQBgjcVAQQFAgMCAAIwIwYJKwYBBAGCNxUCBBYE
+    FOZVZXBzBAe4U6z0MoyWRcscisQzMB0GA1UdDgQWBBTJtRb1Dcbi2Kvf8XpHHjlt
+    HXZDKTAOBgNVHQ8BAf8EBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBADAfBgNVHSME
+    GDAWgBT0786JF7YltVmiRlqezKfNzeUDTjBABgNVHR8EOTA3MDWgM6Axhi9odHRw
+    Oi8vY3JsLm5obi5uby9jcmwvTkhOSW50ZXJuYWxSb290Q0FURVNULmNybDBMBggr
+    BgEFBQcBAQRAMD4wPAYIKwYBBQUHMAKGMGh0dHA6Ly9jcmwubmhuLm5vL2NlcnQv
+    TkhOSW50ZXJuYWxSb290Q0FURVNULmNydDANBgkqhkiG9w0BAQsFAAOCAgEAQg2+
+    wWh503ovrEty9PEq8QBF/JCztG1CRl254JylrJLep5lIVvE4Wn03nPAIspr+lxpO
+    7TiDT7TR4Pa8nr6/2oxtjksUPz8U+F94s+0hzy2S7HwxgKr4rch/TwnIIe6Pi/vX
+    k76uTV9/L0H/gzbYnFH/QJeNeiUtfzQIjGe6T+oKWKdjRT7SQN5FPXyNIx7ps0E1
+    8k+ix5pMr6Yj48CcDxcBChDKd2Ma1w5AQs35gpgG/82Byzjnc9PlXJf+R6kNzKQj
+    MjzJ4tF4CWyhDqUa+/CyBGuXGTZTXYpfCbl3zRpPodSEzmImKT/e1UxlChMWhTcZ
+    TRvYaFJ1nPCxRvU5TVC7b5DD01U3x9MCD+at/DX4MCxWZPMjhG0TEd18aa/OKXrk
+    qC9riTxqTGw06CdoR5rae8tBA8+c9q+vyoo45yhziJNYH0qFjnfQD3KcLOwPg/p/
+    NSX8UhVirlCajwh9uS+8w1tnlqRgBrJwPiiPsbUpjiA2K4Vkgx+jobFOh/7vI/yi
+    mplW+dm0MdpMw9gDzPU50HxvUW8ovpK08MXy/OYsEwc1gWhQrqx+Mh5jISAGEssg
+    JomzaES+kEcyXxN9ms9TMFwUl270rKCgyMiI4u0EloYfPdUH1uZAkxLE7+uQ6d+i
+    uvIStScdfm9o4/E4tG7hVh5yz5AW8Rm9kDKQ35Q=
+    -----END CERTIFICATE-----
+    -----BEGIN CERTIFICATE-----
+    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
+    -----END CERTIFICATE-----
+kind: ConfigMap
+metadata:
+  name: ipam-ca-bundle
+  namespace: ipam-system
+---
+apiVersion: v1
+data:
+  IPAM_API_URL: https://ipam-api.test.vitistack.io
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ipam
+    control-plane: controller-manager
+  name: ipam-controller-config
+  namespace: ipam-system
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ipam
+    control-plane: controller-manager
+  name: ipam-controller-manager-metrics-service
+  namespace: ipam-system
+spec:
+  ports:
+  - name: https
+    port: 8443
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    app.kubernetes.io/name: ipam
+    control-plane: controller-manager
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ipam
+  name: ipam-webhook-service
+  namespace: ipam-system
+spec:
+  ports:
+  - port: 443
+    protocol: TCP
+    targetPort: 9443
+  selector:
+    app.kubernetes.io/name: ipam
+    control-plane: controller-manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ipam
+    control-plane: controller-manager
+  name: ipam-controller-manager
+  namespace: ipam-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ipam
+      control-plane: controller-manager
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        app.kubernetes.io/name: ipam
+        control-plane: controller-manager
+    spec:
+      containers:
+      - args:
+        - --metrics-bind-address=:8443
+        - --leader-elect
+        - --health-probe-bind-address=:8081
+        - --metrics-cert-path=/tmp/k8s-metrics-server/metrics-certs
+        - --webhook-cert-path=/tmp/k8s-webhook-server/serving-certs
+        command:
+        - /manager
+        envFrom:
+        - configMapRef:
+            name: ipam-controller-config
+        image: ncr.sky.nhn.no/dcn/ipam-controller:latest
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: manager
+        ports:
+        - containerPort: 9443
+          name: webhook-server
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - mountPath: /etc/ssl/custom
+          name: ca-bundle
+        - mountPath: /tmp/k8s-metrics-server/metrics-certs
+          name: metrics-certs
+          readOnly: true
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: webhook-certs
+          readOnly: true
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: ipam-controller-manager
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - configMap:
+          name: ipam-ca-bundle
+        name: ca-bundle
+      - name: metrics-certs
+        secret:
+          items:
+          - key: ca.crt
+            path: ca.crt
+          - key: tls.crt
+            path: tls.crt
+          - key: tls.key
+            path: tls.key
+          optional: false
+          secretName: metrics-server-cert
+      - name: webhook-certs
+        secret:
+          secretName: webhook-server-cert
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ipam
+  name: ipam-metrics-certs
+  namespace: ipam-system
+spec:
+  dnsNames:
+  - ipam-controller-manager-metrics-service.ipam-system.svc
+  - ipam-controller-manager-metrics-service.ipam-system.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: ipam-selfsigned-issuer
+  secretName: metrics-server-cert
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ipam
+  name: ipam-serving-cert
+  namespace: ipam-system
+spec:
+  dnsNames:
+  - ipam-webhook-service.ipam-system.svc
+  - ipam-webhook-service.ipam-system.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: ipam-selfsigned-issuer
+  secretName: webhook-server-cert
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ipam
+  name: ipam-selfsigned-issuer
+  namespace: ipam-system
+spec:
+  selfSigned: {}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: ipam-system/ipam-serving-cert
+  name: ipam-mutating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: ipam-webhook-service
+      namespace: ipam-system
+      path: /mutate--v1-service
+  failurePolicy: Fail
+  name: mservice-v1.kb.io
+  namespaceSelector:
+    matchExpressions:
+    - key: kubernetes.io/metadata.name
+      operator: NotIn
+      values:
+      - cert-manager
+      - kube-node-lease
+      - kube-public
+      - kube-system
+      - kubemacpool-system
+      - kubelet-serving-cert-approver
+      - kubevirt
+      - letsencrypt
+      - eventus
+      - fluent
+      - kyverno
+      - metallb-system
+      - monitoring
+      - rook-ceph
+      - falco
+      - trivy-system
+      - prometheus-operator
+      - prometheus-blackbox-exporter
+      - ipam-system
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - services
+  sideEffects: NoneOnDryRun
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: ipam-system/ipam-serving-cert
+  name: ipam-validating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: ipam-webhook-service
+      namespace: ipam-system
+      path: /validate--v1-service
+  failurePolicy: Fail
+  name: vservice-v1.kb.io
+  namespaceSelector:
+    matchExpressions:
+    - key: kubernetes.io/metadata.name
+      operator: NotIn
+      values:
+      - cert-manager
+      - kube-node-lease
+      - kube-public
+      - kube-system
+      - kubemacpool-system
+      - kubelet-serving-cert-approver
+      - kubevirt
+      - letsencrypt
+      - eventus
+      - fluent
+      - kyverno
+      - metallb-system
+      - monitoring
+      - rook-ceph
+      - falco
+      - prometheus-operator
+      - prometheus-blackbox-exporter
+      - trivy-system
+      - ipam-system
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - UPDATE
+    - DELETE
+    resources:
+    - services
+  sideEffects: None
