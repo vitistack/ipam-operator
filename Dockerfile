@@ -1,10 +1,26 @@
 # Build the manager binary
-FROM docker.io/golang:1.23 AS builder
+FROM docker.io/golang:1.24.3 AS builder
 ARG TARGETOS
 ARG TARGETARCH
+ARG GITHUB_TOKEN
+
+# Configure Go to treat vitistack repositories as private
+ENV GOPRIVATE=github.com/vitistack/*
+
+# Install git (required for private repositories)
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
+
+# Set up authentication for private repositories using .netrc
+RUN if [ -n "$GITHUB_TOKEN" ]; then \
+        echo "machine github.com login token password $GITHUB_TOKEN" > ~/.netrc && \
+        chmod 600 ~/.netrc; \
+    fi
+# Configure git to use HTTPS with token authentication
+RUN git config --global url."https://token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+
 COPY go.mod go.mod
 COPY go.sum go.sum
 # cache deps before building and copying source so that we don't need to re-download as much
