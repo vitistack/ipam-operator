@@ -275,8 +275,8 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 			servicelog.Info("Request IPv4-address for Service:", "name", service.GetName())
 			responseIPv4AddrObject, err = utils.RequestIP(requestIPv4AddrObject)
 			if err != nil {
-				servicelog.Info("Request IPv4-address failed!", "name", service.GetName(), "Message", responseIPv4AddrObject.Message)
-				return fmt.Errorf("request ipv4-address failed for Service: %s Message: %s", service.GetName(), responseIPv4AddrObject.Message)
+				servicelog.Info("Request IPv4-address failed!", "name", service.GetName(), "Message", err)
+				return fmt.Errorf("request ipv4-address failed for Service: %s Message: %s", service.GetName(), err)
 			}
 			requestIPv4AddrObject.Address = responseIPv4AddrObject.Address
 			servicelog.Info("Received IPv4-address for Service", "name", service.GetName(), "address", strings.Split(responseIPv4AddrObject.Address, "/")[0])
@@ -307,8 +307,8 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 			servicelog.Info("Request IPv4-address for Service:", "name", service.GetName())
 			responseIPv4AddrObject, err := utils.RequestIP(requestAddrObject)
 			if err != nil {
-				servicelog.Info("Request IPv4-address failed!", "name", service.GetName(), "Message", responseIPv4AddrObject.Message)
-				return fmt.Errorf("request ipv4-address failed for Service: %s Message: %s", service.GetName(), responseIPv4AddrObject.Message)
+				servicelog.Info("Request IPv4-address failed!", "name", service.GetName(), "Message", err)
+				return fmt.Errorf("request ipv4-address failed for Service: %s Message: %s", service.GetName(), err)
 			}
 			requestIPv4AddrObject.Address = responseIPv4AddrObject.Address
 			servicelog.Info("Received IPv4-address for Service:", "name", service.GetName(), "address", strings.Split(responseIPv4AddrObject.Address, "/")[0])
@@ -319,8 +319,8 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 			servicelog.Info("Request IPv6-address for Service:", "name", service.GetName())
 			responseIPv6AddrObject, err := utils.RequestIP(requestAddrObject)
 			if err != nil {
-				servicelog.Info("Request IPv6-address failed!", "name", service.GetName(), "Message", responseIPv6AddrObject.Message)
-				return fmt.Errorf("request ipv6-address failed for Service: %s Message: %s", service.GetName(), responseIPv6AddrObject.Message)
+				servicelog.Info("Request IPv6-address failed!", "name", service.GetName(), "Message", err)
+				return fmt.Errorf("request ipv6-address failed for Service: %s Message: %s", service.GetName(), err)
 			}
 			requestIPv6AddrObject.Address = responseIPv6AddrObject.Address
 			servicelog.Info("Received IPv6-address for Service:", "name", service.GetName(), "address", strings.Split(responseIPv6AddrObject.Address, "/")[0])
