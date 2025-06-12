@@ -10,7 +10,7 @@ rules:
   resources: ["secrets","services"]
   verbs: ["get", "list", "watch","create","update"]
 - apiGroups: ["*"]
-  resources: ["namespaces"]
+  resources: ["namespaces","pods"]
   verbs: ["get", "list","watch"]
 - apiGroups: ["metallb.io"]
   resources: ["ipaddresspools"]
