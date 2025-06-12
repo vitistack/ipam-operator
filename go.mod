@@ -1,13 +1,13 @@
 module github.com/vitistack/ipam-operator
 
-go 1.24.3
+go 1.24.4
 
-godebug default=go1.24.3
+godebug default=go1.24.4
 
 require (
 	github.com/onsi/ginkgo/v2 v2.22.0
 	github.com/onsi/gomega v1.36.1
-	github.com/vitistack/ipam-api v0.0.1-rc1
+	github.com/vitistack/ipam-api v0.0.1-rc4
 	go.universe.tf/metallb v0.14.9
 	k8s.io/api v0.32.1
 	k8s.io/apimachinery v0.32.1
