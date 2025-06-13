@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -422,4 +423,15 @@ func UpdateMultiplePrefixes(v client.Client, oldService *corev1.Service, newServ
 	}
 
 	return succededRequests, failedRequests
+}
+
+func ValidIpAddressFamiliy(annotations map[string]string) error {
+
+	validIpFamilies := []string{"ipv4", "ipv6", "dual"}
+
+	if !slices.Contains(validIpFamilies, annotations["ipam.vitistack.io/ip-family"]) {
+		return fmt.Errorf("illegial specified ip-address family: %v , Valid Choices: ipv4,ipv6 & dual", annotations["ipam.vitistack.io/ip-family"])
+	}
+
+	return nil
 }

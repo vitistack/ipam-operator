@@ -187,6 +187,12 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 		service.Spec.IPFamilyPolicy = &ipFamily
 	}
 
+	// Validate if IP-address family is illegal
+	if err := utils.ValidIpAddressFamiliy(annotations); err != nil {
+		servicelog.Info("Illegal IP-address family", "name", service.GetName(), "Error:", err)
+		return fmt.Errorf("error: %v", err)
+	}
+
 	// Replace default secret with custom secret if specified in annotations
 	if annotations["ipam.vitistack.io/secret"] != "default" {
 		secret, err = utils.GetCustomSecret(d.Client, service.Namespace, annotations)
