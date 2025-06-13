@@ -271,7 +271,8 @@ spec:
             memory: 64Mi
         volumeMounts:
         - name: ca-bundle
-          mountPath: /etc/ssl/custom
+          mountPath: /etc/ssl/certs
+          readOnly: true
       volumes:
         - name: ca-bundle
           configMap:

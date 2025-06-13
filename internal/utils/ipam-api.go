@@ -23,7 +23,7 @@ func RequestIP(request apicontracts.IpamApiRequest) (apicontracts.IpamApiRespons
 	envVar := "IPAM_API_URL"
 	ipamApiUrl := os.Getenv(envVar)
 	if ipamApiUrl == "" {
-		return apicontracts.IpamApiResponse{}, fmt.Errorf("environment variable %s was not found", envVar)
+		return apicontracts.IpamApiResponse{}, fmt.Errorf("environment variable for IPAM-API %s was not found", envVar)
 	}
 
 	// Update request object with prefix and correct ip-family
@@ -43,13 +43,13 @@ func RequestIP(request apicontracts.IpamApiRequest) (apicontracts.IpamApiRespons
 	// Marshal the struct to JSON
 	jsonData, err := json.Marshal(request)
 	if err != nil {
-		return apicontracts.IpamApiResponse{}, err
+		return apicontracts.IpamApiResponse{}, fmt.Errorf("fail to struct request to Json: %v", err)
 	}
 
 	// Make the HTTP POST request
 	req, err := http.NewRequest("POST", ipamApiUrl, bytes.NewBuffer(jsonData))
 	if err != nil {
-		return apicontracts.IpamApiResponse{}, err
+		return apicontracts.IpamApiResponse{}, fmt.Errorf("fail to create new http request: %v", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -58,7 +58,7 @@ func RequestIP(request apicontracts.IpamApiRequest) (apicontracts.IpamApiRespons
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return apicontracts.IpamApiResponse{}, err
+		return apicontracts.IpamApiResponse{}, fmt.Errorf("fail to send request to: %v , error: %v", ipamApiUrl, err)
 	}
 	defer resp.Body.Close()
 
@@ -66,7 +66,7 @@ func RequestIP(request apicontracts.IpamApiRequest) (apicontracts.IpamApiRespons
 	var responseData apicontracts.IpamApiResponse
 	err = json.NewDecoder(resp.Body).Decode(&responseData)
 	if err != nil {
-		return apicontracts.IpamApiResponse{}, err
+		return apicontracts.IpamApiResponse{}, fmt.Errorf("fail to decode response %v", err)
 	}
 
 	if resp.StatusCode != 200 && resp.StatusCode != 201 {

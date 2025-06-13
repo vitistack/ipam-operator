@@ -99,7 +99,7 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
-	flag.BoolVar(&enableCaBundle, "enable-custom-ca-bundle", true,
+	flag.BoolVar(&enableCaBundle, "enable-custom-ca-bundle", false,
 		"If set Custom CA Bundle will be enable for controller")
 	opts := zap.Options{
 		Development: true,
