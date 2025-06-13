@@ -109,6 +109,7 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 	}
 
 	// DryRun the object to check if it pass dry run validation.
+	servicelog.Info("Dry run .Spec:", "name", service.GetName())
 	dryRunService := service.DeepCopy()
 	if err := d.Client.Create(context.TODO(), dryRunService, &client.CreateOptions{
 		DryRun: []string{metav1.DryRunAll},
@@ -273,6 +274,7 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 	case "both":
 		if !strings.Contains(annotations["ipam.vitistack.io/addresses"], ".") {
 			servicelog.Info("Request IPv4-address for Service:", "name", service.GetName())
+			requestIPv6AddrObject.IpFamily = "ipv4"
 			responseIPv4AddrObject, err = utils.RequestIP(requestIPv4AddrObject)
 			if err != nil {
 				servicelog.Info("Request IPv4-address failed!", "name", service.GetName(), "Message", err)
@@ -285,6 +287,7 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 		}
 		if !strings.Contains(annotations["ipam.vitistack.io/addresses"], ":") {
 			servicelog.Info("Request IPv6-address for Service", "name", service.GetName())
+			requestIPv6AddrObject.IpFamily = "ipv6"
 			responseIPv6AddrObject, err = utils.RequestIP(requestIPv6AddrObject)
 			if err != nil {
 				servicelog.Info("Request IPv6-address failed!", "name", service.GetName(), "Message", responseIPv6AddrObject.Message)
