@@ -274,7 +274,7 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 	case "both":
 		if !strings.Contains(annotations["ipam.vitistack.io/addresses"], ".") {
 			servicelog.Info("Request IPv4-address for Service:", "name", service.GetName())
-			requestIPv6AddrObject.IpFamily = "ipv4"
+			requestIPv4AddrObject.IpFamily = "ipv4"
 			responseIPv4AddrObject, err = utils.RequestIP(requestIPv4AddrObject)
 			if err != nil {
 				servicelog.Info("Request IPv4-address failed!", "name", service.GetName(), "Message", err)
