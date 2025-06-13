@@ -115,20 +115,16 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 		if err := d.Client.Create(context.TODO(), dryRunService, &client.CreateOptions{
 			DryRun: []string{metav1.DryRunAll},
 		}); err != nil {
-			if !strings.Contains(err.Error(), ".nodePort") {
-				servicelog.Info("Failed to dry run Service creation:", "name", service.GetName(), "error", err)
-				return fmt.Errorf("failed to dry run Service creation: %w", err)
-			}
+			servicelog.Info("Failed to dry run Service creation:", "name", service.GetName(), "error", err)
+			return fmt.Errorf("failed to dry run Service creation: %w", err)
 		}
 	} else {
 		dryRunService := service.DeepCopy()
 		if err := d.Client.Update(context.TODO(), dryRunService, &client.UpdateOptions{
 			DryRun: []string{metav1.DryRunAll},
 		}); err != nil {
-			if !strings.Contains(err.Error(), ".nodePort") {
-				servicelog.Info("Failed to dry run Service update:", "name", service.GetName(), "error", err)
-				return fmt.Errorf("failed to dry run Service update: %w", err)
-			}
+			servicelog.Info("Failed to dry run Service update:", "name", service.GetName(), "error", err)
+			return fmt.Errorf("failed to dry run Service update: %w", err)
 		}
 	}
 
