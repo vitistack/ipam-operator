@@ -88,18 +88,12 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 	req, _ := admission.RequestFromContext(ctx)
 
 	// Do not mutate if the service type is not LoadBalancer.
-	if req.Operation == "CREATE" {
-		if service.Spec.Type != "LoadBalancer" {
-			servicelog.Info("Not Mutating Service due to wrong .spec.type", "name", service.GetName(), "type", service.Spec.Type)
-			return nil
-		}
-	}
-
-	// Reject update if service type has changed!
-	if req.Operation == "UPDATE" {
-		if service.Spec.Type != "LoadBalancer" {
-			return fmt.Errorf("service type is no longer loadbalancer, please remove the service and create a new one")
-		}
+	if service.Spec.Type != "LoadBalancer" && len(service.Status.LoadBalancer.Ingress) == 0 {
+		servicelog.Info("Not Mutating Service due to wrong .spec.type", "name", service.GetName(), "type", service.Spec.Type)
+		return nil
+	} else {
+		// Force spec type to LoadBalancer
+		service.Spec.Type = "LoadBalancer"
 	}
 
 	// Detect dry run mode
@@ -523,7 +517,7 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 	servicelog.Info("Validation Update Started for Service", "name", newService.GetName())
 
 	// Do not validate if the service type is not LoadBalancer
-	if newService.Spec.Type != "LoadBalancer" {
+	if oldService.Spec.Type != "Loadbalancer" && newService.Spec.Type != "LoadBalancer" {
 		servicelog.Info("Not Validating Service due to wrong .spec.type", "name", newService.GetName(), "type", newService.Spec.Type)
 		return nil, nil
 	}
@@ -538,6 +532,17 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 	if *req.DryRun {
 		servicelog.Info("Dry run mode detected, skipping validate update for Service:", "name", newService.GetName())
 		return nil, nil
+	}
+
+	// Support changing .Spec.Type
+	if oldService.Spec.Type != "LoadBalancer" {
+		// Get Service annotations
+		annotations := oldService.GetAnnotations()
+		// If annotations are nil, initialize them
+		if annotations == nil {
+			annotations = make(map[string]string)
+		}
+		oldService.SetAnnotations(utils.SetDefaultIpamAnnotations(annotations))
 	}
 
 	// Get Service annotations from old and new Service objects
@@ -642,7 +647,7 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 
 	// Remove old addresses
 	var removePrefixesSucceeded []string
-	if len(removePrefixes) > 0 {
+	if len(removePrefixes) > 0 && removePrefixes[0] != "" {
 		servicelog.Info("Remove addresses from IPAM-API", "name", newService.GetName(), "Addresses", removePrefixes)
 		removePrefixesSucceeded, err = utils.DeleteMultiplePrefixes(v.Client, oldService, removePrefixes)
 		if err != nil {
@@ -678,6 +683,13 @@ func (v *ServiceCustomValidator) ValidateDelete(ctx context.Context, obj runtime
 	}
 
 	// TODO(user): fill in your validation logic upon object deletion.
+
+	// Do not Validate if the service type is not LoadBalancer.
+
+	if service.Spec.Type != "LoadBalancer" {
+		servicelog.Info("Not Mutating Service due to wrong .spec.type", "name", service.GetName(), "type", service.Spec.Type)
+		return nil, nil
+	}
 
 	// Get Service annotations, need "ipam.vitistack.io/zone" to remove IP addresses from correct IPAddressPool
 	annotations := service.GetAnnotations()
