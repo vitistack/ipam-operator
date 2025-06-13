@@ -580,6 +580,8 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 	if len(keepPrefixes) > 0 && len(newPrefixes) > 0 {
 		if oldAnnotations["ipam.vitistack.io/zone"] != newAnnotations["ipam.vitistack.io/zone"] {
 			servicelog.Info("Change of zone is prohibited while keeping addresses from another zone", "service", newService.GetName())
+			utils.DeleteMultiplePrefixes(v.Client, newService, newPrefixes)
+			servicelog.Info("Remove allocated ip-addresses:", "service", newService.GetName(), "Prefixes:", newPrefixes)
 			return nil, fmt.Errorf("change of zone is prohibited while keeping addresses from another zone")
 		}
 	}
