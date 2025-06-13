@@ -179,7 +179,7 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 
 	// Set default annotations for missing IPAM annotations
 	annotations = utils.SetDefaultIpamAnnotations(annotations)
-	if annotations["ipam.vitistack.io/ip-family"] != "both" {
+	if annotations["ipam.vitistack.io/ip-family"] != "dual" {
 		ipFamily := corev1.IPFamilyPolicySingleStack
 		service.Spec.IPFamilyPolicy = &ipFamily
 	} else {
@@ -279,7 +279,7 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 	var retrievedAddress bool
 
 	switch ipFamily {
-	case "both":
+	case "dual":
 		if !strings.Contains(annotations["ipam.vitistack.io/addresses"], ".") {
 			servicelog.Info("Request IPv4-address for Service:", "name", service.GetName())
 			requestIPv4AddrObject.IpFamily = "ipv4"
