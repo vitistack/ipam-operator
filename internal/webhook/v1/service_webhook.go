@@ -173,12 +173,19 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 
 	// Set default annotations for missing IPAM annotations
 	annotations = utils.SetDefaultIpamAnnotations(annotations)
-	if annotations["ipam.vitistack.io/ip-family"] != "dual" {
+	switch annotations["ipam.vitistack.io/ip-family"] {
+	case "ipv4":
 		ipFamily := corev1.IPFamilyPolicySingleStack
 		service.Spec.IPFamilyPolicy = &ipFamily
-	} else {
+	case "ipv6":
 		ipFamily := corev1.IPFamilyPolicyPreferDualStack
 		service.Spec.IPFamilyPolicy = &ipFamily
+	case "dual":
+		ipFamily := corev1.IPFamilyPolicyPreferDualStack
+		service.Spec.IPFamilyPolicy = &ipFamily
+	case "default":
+		servicelog.Info("Invalid IP-Family specification for Service:", "name", service.GetName())
+		return fmt.Errorf("invalid IP-Family specification for Service: %v", service.GetName())
 	}
 
 	// Validate if IP-address family is illegal
