@@ -194,6 +194,22 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 		return fmt.Errorf("error: %v", err)
 	}
 
+	// Check if .spec.clusterIP is valid for ip-family during UPDATE
+	if req.Operation == "UPDATE" {
+		if annotations["ipam.vitistack.io/ip-family"] == "ipv4" {
+			if !strings.Contains(service.Spec.ClusterIP, ".") {
+				servicelog.Info("Not allow to change ip-family, due to invalid ip-address in .spec.clusterIP, please re-create service with valid .spec.ipFamilies['ipv4']", "name", service.GetName())
+				return fmt.Errorf("not allow to change ip-family due to invalid ip-address in .spec.clusterIP, please re-create service with valid .spec.ipFamilies")
+			}
+		}
+		if annotations["ipam.vitistack.io/ip-family"] == "ipv6" {
+			if !strings.Contains(service.Spec.ClusterIP, ":") {
+				servicelog.Info("Not allow to change ip-family, due to invalid ip-address in .spec.clusterIP, please re-create service with valid .spec.ipFamilies['ipv6']", "name", service.GetName())
+				return fmt.Errorf("not allow to change ip-family due to invalid ip-address in .spec.clusterIP, please re-create service with valid .spec.ipFamilies")
+			}
+		}
+	}
+
 	// Replace default secret with custom secret if specified in annotations
 	if annotations["ipam.vitistack.io/secret"] != "default" {
 		secret, err = utils.GetCustomSecret(d.Client, service.Namespace, annotations)
