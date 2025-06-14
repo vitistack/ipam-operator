@@ -178,10 +178,10 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 		ipFamily := corev1.IPFamilyPolicySingleStack
 		service.Spec.IPFamilyPolicy = &ipFamily
 	case "ipv6":
-		ipFamily := corev1.IPFamilyPolicyPreferDualStack
+		ipFamily := corev1.IPFamilyPolicySingleStack
 		service.Spec.IPFamilyPolicy = &ipFamily
 	case "dual":
-		ipFamily := corev1.IPFamilyPolicyPreferDualStack
+		ipFamily := corev1.IPFamilyPolicyRequireDualStack
 		service.Spec.IPFamilyPolicy = &ipFamily
 	case "default":
 		servicelog.Info("Invalid IP-Family specification for Service:", "name", service.GetName())
