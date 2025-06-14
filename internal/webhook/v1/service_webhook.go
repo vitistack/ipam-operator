@@ -19,6 +19,7 @@ package v1
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -587,35 +588,46 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 	// Create a slice to hold addresses which should be added
 	newPrefixes := []string{}
 	for _, newAddr := range newServicePrefixes {
-		for _, oldAddr := range oldServicePrefixes {
-			if newAddr != oldAddr {
-				newPrefixes = append(newPrefixes, newAddr)
-			}
+		if !slices.Contains(oldServicePrefixes, newAddr) {
+			newPrefixes = append(newPrefixes, newAddr)
 		}
+		// for _, newAddr := range newServicePrefixes {
+		// 	for _, oldAddr := range oldServicePrefixes {
+		// 		if newAddr != oldAddr {
+		// 			newPrefixes = append(newPrefixes, newAddr)
+		// 		}
+		// 	}
 	}
 
 	// Create a slice to hold addresses which should be updated
 	keepPrefixes := []string{}
 	for _, newAddr := range newServicePrefixes {
-		for _, oldAddr := range oldServicePrefixes {
-			if newAddr == oldAddr {
-				keepPrefixes = append(keepPrefixes, newAddr)
-			}
+		if slices.Contains(oldServicePrefixes, newAddr) {
+			keepPrefixes = append(keepPrefixes, newAddr)
 		}
+		// for _, oldAddr := range oldServicePrefixes {
+		// 	if newAddr == oldAddr {
+		// 		keepPrefixes = append(keepPrefixes, newAddr)
+		// 	}
+		// }
 	}
 
 	// Create a slice to hold addresses which should be removed
 	removePrefixes := []string{}
 	for _, oldAddr := range oldServicePrefixes {
-		count := 0
-		for _, newAddr := range newServicePrefixes {
-			if oldAddr == newAddr {
-				count++
-			}
-		}
-		if count == 0 {
+		if !slices.Contains(newServicePrefixes, oldAddr) {
 			removePrefixes = append(removePrefixes, oldAddr)
 		}
+		// for _, oldAddr := range oldServicePrefixes {
+		// 	count := 0
+		// 	for _, newAddr := range newServicePrefixes {
+		// 		if oldAddr == newAddr {
+		// 			count++
+		// 		}
+		// 	}
+		// 	if count == 0 {
+		// 		removePrefixes = append(removePrefixes, oldAddr)
+		// 	}
 	}
 
 	// Return error if len(keepPrefixes) > 0 & change of adddress-family for newPrefixes
