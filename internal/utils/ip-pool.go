@@ -2,9 +2,8 @@ package utils
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
-	"net"
+	"slices"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -15,29 +14,6 @@ import (
 )
 
 func AddIpAddressesToPool(d client.Client, annotations map[string]string, addresses []string) error {
-	ipAddressPool := &metallbv1beta1.IPAddressPool{}
-	err := d.Get(context.TODO(), types.NamespacedName{
-		Name:      annotations["ipam.vitistack.io/zone"],
-		Namespace: "metallb-system",
-	}, ipAddressPool)
-
-	if err != nil {
-		// Create IP Address Pool
-		ipAddressPool.Name = annotations["ipam.vitistack.io/zone"]
-		ipAddressPool.Namespace = "metallb-system"
-		ipAddressPool.Spec.AvoidBuggyIPs = true
-		autoAssign := false
-		ipAddressPool.Spec.AutoAssign = &autoAssign
-		ip, genErr := generateRandomIPv6DocAddress()
-		if genErr != nil {
-			return fmt.Errorf("failed to generate random IPv6 address during ip-pool creation: %w", genErr)
-		}
-		ipAddressPool.Spec.Addresses = []string{ip.String() + "/128"}
-		err := d.Create(context.TODO(), ipAddressPool)
-		if err != nil {
-			return fmt.Errorf("failed to create IPAddressPool: %w", err)
-		}
-	}
 
 	// Add prefixes to addresses if missing!
 	for index, addr := range addresses {
@@ -53,17 +29,36 @@ func AddIpAddressesToPool(d client.Client, annotations map[string]string, addres
 		}
 	}
 
+	// Check if IP Address-Pool exists
+	ipAddressPool := &metallbv1beta1.IPAddressPool{}
+	err := d.Get(context.TODO(), types.NamespacedName{
+		Name:      annotations["ipam.vitistack.io/zone"],
+		Namespace: "metallb-system",
+	}, ipAddressPool)
+
+	// CREATE if IP Address-Pool does not exists
+	if err != nil {
+		// Create IP Address Pool
+		ipAddressPool.Name = annotations["ipam.vitistack.io/zone"]
+		ipAddressPool.Namespace = "metallb-system"
+		ipAddressPool.Spec.AvoidBuggyIPs = true
+		autoAssign := false
+		ipAddressPool.Spec.AutoAssign = &autoAssign
+		ipAddressPool.Spec.Addresses = addresses
+		err := d.Create(context.TODO(), ipAddressPool)
+		if err != nil {
+			return fmt.Errorf("failed to create IPAddressPool: %w", err)
+		}
+		return nil
+	}
+
+	// UPDATE if IP Address-Pool exists
+
 	// Check if the addresses are already in the IPAddressPool
 	// If the addresses are already in the pool, skip adding them
 	unassignedAddresses := []string{}
 	for _, addr := range addresses {
-		count := 0
-		for _, item := range ipAddressPool.Spec.Addresses {
-			if addr == item {
-				count++
-			}
-		}
-		if count == 0 {
+		if !slices.Contains(ipAddressPool.Spec.Addresses, addr) {
 			unassignedAddresses = append(unassignedAddresses, addr)
 		}
 	}
@@ -149,8 +144,19 @@ func RemoveIPAddressesFromPool(d client.Client, annotations map[string]string, a
 		}
 	}
 
-	// Remove the specified addresses from the IPAddressPool
-	ipAddressPool.Spec.Addresses = removeAddressesHelper(ipAddressPool.Spec.Addresses, notInUseAddresses)
+	// Create variable with IP address that should be removed!
+	newIpAddressPool := removeAddressesHelper(ipAddressPool.Spec.Addresses, notInUseAddresses)
+
+	// Delete IP-Address Pool if there is no more ip-addresses left in the pool!
+	if len(newIpAddressPool) == 0 {
+		if err = d.Delete(context.TODO(), ipAddressPool, &client.DeleteOptions{}); err != nil {
+			return fmt.Errorf("failed to remove ip-address pool: %v", err)
+		}
+		return nil
+	}
+
+	// Update IP-address Pool otherwise!
+	ipAddressPool.Spec.Addresses = newIpAddressPool
 
 	if err = d.Update(context.TODO(), ipAddressPool); err != nil {
 		return fmt.Errorf("failed to remove adresses from IPAddressPool: %v", err)
@@ -173,22 +179,4 @@ func removeAddressesHelper(src []string, toRemove []string) []string {
 		}
 	}
 	return result
-}
-
-func generateRandomIPv6DocAddress() (net.IP, error) {
-	ip := make(net.IP, net.IPv6len)
-
-	// Set the first 32 bits to 2001:0db8::/32
-	ip[0] = 0x20
-	ip[1] = 0x01
-	ip[2] = 0x0d
-	ip[3] = 0xb8
-
-	// Fill the remaining 12 bytes with random data
-	_, err := rand.Read(ip[4:])
-	if err != nil {
-		return nil, err
-	}
-
-	return ip, nil
 }

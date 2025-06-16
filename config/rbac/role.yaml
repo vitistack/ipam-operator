@@ -14,4 +14,4 @@ rules:
   verbs: ["get", "list","watch"]
 - apiGroups: ["metallb.io"]
   resources: ["ipaddresspools"]
-  verbs: ["get", "list", "watch", "create","update"]
+  verbs: ["get", "list", "watch", "create","update","delete"]
