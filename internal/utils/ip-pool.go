@@ -2,7 +2,9 @@ package utils
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
+	"net"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -20,7 +22,21 @@ func AddIpAddressesToPool(d client.Client, annotations map[string]string, addres
 	}, ipAddressPool)
 
 	if err != nil {
-		return fmt.Errorf("failed to get IPAddressPool: %w", err)
+		// Create IP Address Pool
+		ipAddressPool.Name = annotations["ipam.vitistack.io/zone"]
+		ipAddressPool.Namespace = "metallb-system"
+		ipAddressPool.Spec.AvoidBuggyIPs = true
+		autoAssign := false
+		ipAddressPool.Spec.AutoAssign = &autoAssign
+		ip, genErr := generateRandomIPv6DocAddress()
+		if genErr != nil {
+			return fmt.Errorf("failed to generate random IPv6 address during ip-pool creation: %w", genErr)
+		}
+		ipAddressPool.Spec.Addresses = []string{ip.String() + "/128"}
+		err := d.Create(context.TODO(), ipAddressPool)
+		if err != nil {
+			return fmt.Errorf("failed to create IPAddressPool: %w", err)
+		}
 	}
 
 	// Add prefixes to addresses if missing!
@@ -157,4 +173,22 @@ func removeAddressesHelper(src []string, toRemove []string) []string {
 		}
 	}
 	return result
+}
+
+func generateRandomIPv6DocAddress() (net.IP, error) {
+	ip := make(net.IP, net.IPv6len)
+
+	// Set the first 32 bits to 2001:0db8::/32
+	ip[0] = 0x20
+	ip[1] = 0x01
+	ip[2] = 0x0d
+	ip[3] = 0xb8
+
+	// Fill the remaining 12 bytes with random data
+	_, err := rand.Read(ip[4:])
+	if err != nil {
+		return nil, err
+	}
+
+	return ip, nil
 }

@@ -257,11 +257,11 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 	}
 
 	// Check if Metallb ip-address pool exists
-	err = utils.GetIpAddressesToPool(d.Client, annotations)
-	if err != nil {
-		servicelog.Info("Invalid metallb ip-pool detected for Service", "name", service.GetName(), "address-pool", annotations["ipam.vitistack.io/zone"])
-		return fmt.Errorf("invalid metallb ip-pool detected for Service: %s Error: %s", service.GetName(), err)
-	}
+	// err = utils.GetIpAddressesToPool(d.Client, annotations)
+	// if err != nil {
+	// 	servicelog.Info("Invalid metallb ip-pool detected for Service", "name", service.GetName(), "address-pool", annotations["ipam.vitistack.io/zone"])
+	// 	return fmt.Errorf("invalid metallb ip-pool detected for Service: %s Error: %s", service.GetName(), err)
+	// }
 
 	// Request Addresses
 
