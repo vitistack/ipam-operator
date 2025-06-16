@@ -1,0 +1,45 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ipam
+  name: ipam-metrics-certs
+  namespace: ipam-system
+spec:
+  dnsNames:
+  - ipam-controller-manager-metrics-service.ipam-system.svc
+  - ipam-controller-manager-metrics-service.ipam-system.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: ipam-selfsigned-issuer
+  secretName: metrics-server-cert
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ipam
+  name: ipam-serving-cert
+  namespace: ipam-system
+spec:
+  dnsNames:
+  - ipam-webhook-service.ipam-system.svc
+  - ipam-webhook-service.ipam-system.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: ipam-selfsigned-issuer
+  secretName: webhook-server-cert
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ipam
+  name: ipam-selfsigned-issuer
+  namespace: ipam-system
+spec:
+  selfSigned: {}
