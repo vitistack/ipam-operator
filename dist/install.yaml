@@ -447,8 +447,9 @@ spec:
             drop:
             - ALL
         volumeMounts:
-        - mountPath: /etc/ssl/custom
+        - mountPath: /etc/ssl/certs
           name: ca-bundle
+          readOnly: true
         - mountPath: /tmp/k8s-metrics-server/metrics-certs
           name: metrics-certs
           readOnly: true
