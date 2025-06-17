@@ -2,24 +2,27 @@
 FROM docker.io/golang:1.24.4 AS builder
 ARG TARGETOS
 ARG TARGETARCH
-# ARG GH_TOKEN
 
 # Configure Go to treat vitistack repositories as private
-# ENV GOPRIVATE=github.com/vitistack/*
+ENV GOPRIVATE=github.com/vitistack/*
 
 # Install git (required for private repositories)
-# RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+
+# Mount secret
+RUN --mount=type=secret,id=GIT_AUTH_TOKEN,env=GITHUB_TOKEN
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
 
 # Set up authentication for private repositories using .netrc
-# RUN if [ -n "$GH_TOKEN" ]; then \
-#         echo "machine github.com login token password $GH_TOKEN" > ~/.netrc && \
-#         chmod 600 ~/.netrc; \
-#     fi
+RUN if [ -n "$GITHUB_TOKEN" ]; then \
+        echo "machine github.com login token password $GITHUB_TOKEN" > ~/.netrc && \
+        chmod 600 ~/.netrc; \
+    fi
 # Configure git to use HTTPS with token authentication
-# RUN git config --global url."https://token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
+
+RUN git config --global url."https://token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
 
 COPY go.mod go.mod
 COPY go.sum go.sum
