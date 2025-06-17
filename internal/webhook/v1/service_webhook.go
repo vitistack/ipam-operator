@@ -667,6 +667,7 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 		if err != nil {
 			if len(keepPrefixesSucceeded) == 0 {
 				servicelog.Info("Update failed for addresses to keep:", "name", newService.GetName(), "Error", err)
+				utils.DeleteMultiplePrefixes(v.Client, newService, newPrefixesSucceeded)
 			} else {
 				servicelog.Info("Delete requested new addresses:", "name", newService.GetName(), "Addresses", newPrefixesSucceeded)
 				utils.DeleteMultiplePrefixes(v.Client, newService, newPrefixesSucceeded)

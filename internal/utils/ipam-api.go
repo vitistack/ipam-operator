@@ -398,6 +398,7 @@ func UpdateMultiplePrefixes(v client.Client, oldService *corev1.Service, newServ
 		Secret:    string(oldSecret.Data["secret"]),
 		NewSecret: string(newSecret.Data["secret"]),
 		Zone:      newAnnotations["ipam.vitistack.io/zone"],
+		IpFamily:  newAnnotations["ipam.vitistack.io/ip-family"],
 		Service: apicontracts.Service{
 			ServiceName:         newService.GetName(),
 			NamespaceId:         string(namespaceId),
@@ -414,6 +415,11 @@ func UpdateMultiplePrefixes(v client.Client, oldService *corev1.Service, newServ
 
 	for _, addr := range prefixes {
 		requestAddrObject.Address = addr
+		if strings.Contains(addr, ".") {
+			requestAddrObject.IpFamily = "ipv4"
+		} else {
+			requestAddrObject.IpFamily = "ipv6"
+		}
 		_, err := RequestIP(requestAddrObject)
 		if err != nil {
 			failedRequests = err
