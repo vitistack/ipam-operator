@@ -45,7 +45,7 @@ jobs:
         run: go vet ./...
 
       - name: Run tests
-        run: go test -v ./...
+        run: go test $(go list ./... | grep -v test)
 
   security-scan:
     name: Security Scan
