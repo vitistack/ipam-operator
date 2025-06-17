@@ -2,15 +2,13 @@
 FROM docker.io/golang:1.24.4 AS builder
 ARG TARGETOS
 ARG TARGETARCH
+ARG GITHUB_TOKEN
 
 # Configure Go to treat vitistack repositories as private
 ENV GOPRIVATE=github.com/vitistack/*
 
 # Install git (required for private repositories)
 RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-
-# Mount secret
-RUN --mount=type=secret,id=GIT_AUTH_TOKEN,env=GITHUB_TOKEN
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
