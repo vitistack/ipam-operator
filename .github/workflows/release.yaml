@@ -41,7 +41,7 @@ jobs:
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v*}"
           echo "Version $VERSION"
-          make build-static
+          make build
           touch cmd/isbuilt
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
