@@ -2,17 +2,24 @@ name: Build and Test
 
 on:
   push:
-    branches: [main]
+    branches: ["*"]
   pull_request:
-    branches: [main]
+    branches: ["main","master"]
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    env:
+      GOPRIVATE: github.com/vitistack
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
     steps:
       - name: Check out code
         uses: actions/checkout@v4
+
+      - name: Configure Git for private repos
+        run: |
+          git config --global url.https://$GH_TOKEN@github.com/.insteadOf https://github.com/
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -24,6 +31,8 @@ jobs:
 
       - name: Install dependencies
         run: go mod download
+        env:
+          GOPRIVATE: github.com/vitistack
 
       - name: Build
         run: go build -v ./...
@@ -37,10 +46,17 @@ jobs:
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
+    env:
+      GOPRIVATE: github.com/vitistack
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
     # Run in parallel with build job
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Configure Git for private repos
+        run: |
+          git config --global url.https://$GH_TOKEN@github.com/.insteadOf https://github.com/
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -49,7 +65,16 @@ jobs:
           cache: true
           cache-dependency-path: go.sum
 
+      - name: Install dependencies
+        run: |
+          go mod download
+        env:
+          GOPRIVATE: github.com/vitistack/*
+          GOPROXY: direct
+
       - name: Run security scan
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
+        env:
+          GOPRIVATE: github.com/vitistack/*
