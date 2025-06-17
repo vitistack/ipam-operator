@@ -49,6 +49,9 @@ jobs:
     name: Create OCI Image
     needs: build
     runs-on: ubuntu-latest
+    env:
+      GOPRIVATE: github.com/vitistack
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
