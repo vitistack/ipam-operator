@@ -157,7 +157,7 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
 	- $(CONTAINER_TOOL) buildx create --name ipam-builder
 	$(CONTAINER_TOOL) buildx use ipam-builder
-	- $(CONTAINER_TOOL) buildx build --build-arg GITHUB_TOKEN=$$GITHUB_TOKEN --push --platform=$(PLATFORMS) --tag ${IMG} -f Dockerfile.cross .
+	- $(CONTAINER_TOOL) buildx build --build-arg GITHUB_TOKEN=$$GH_TOKEN --push --platform=$(PLATFORMS) --tag ${IMG} -f Dockerfile.cross .
 	- $(CONTAINER_TOOL) buildx rm ipam-builder
 	rm Dockerfile.cross
 
