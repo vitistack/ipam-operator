@@ -33,7 +33,7 @@ spec:
         envFrom:
         - configMapRef:
             name: ipam-controller-config
-        image: ncr.sky.nhn.no/ghcr/vitistack/ipam-operator:0.0.1-rc27
+        image: ncr.sky.nhn.no/ghcr/vitistack/ipam-operator:0.0.1-rc28
         livenessProbe:
           httpGet:
             path: /healthz
