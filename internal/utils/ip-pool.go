@@ -41,7 +41,7 @@ func AddIpAddressesToPool(d client.Client, annotations map[string]string, addres
 		// Create IP Address Pool
 		ipAddressPool.Name = annotations["ipam.vitistack.io/zone"]
 		ipAddressPool.Namespace = "metallb-system"
-		ipAddressPool.Spec.AvoidBuggyIPs = true
+		ipAddressPool.Spec.AvoidBuggyIPs = false
 		autoAssign := false
 		ipAddressPool.Spec.AutoAssign = &autoAssign
 		ipAddressPool.Spec.Addresses = addresses
