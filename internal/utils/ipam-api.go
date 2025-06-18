@@ -415,11 +415,6 @@ func UpdateMultiplePrefixes(v client.Client, oldService *corev1.Service, newServ
 
 	for _, addr := range prefixes {
 		requestAddrObject.Address = addr
-		if strings.Contains(addr, ".") {
-			requestAddrObject.IpFamily = "ipv4"
-		} else {
-			requestAddrObject.IpFamily = "ipv6"
-		}
 		_, err := RequestIP(requestAddrObject)
 		if err != nil {
 			failedRequests = err
