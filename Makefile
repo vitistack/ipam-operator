@@ -1,6 +1,6 @@
 # Image URL to use all building/pushing image targets
 #IMG ?= controller:latest
-IMG = ncr.sky.nhn.no/ghcr/vitistack/ipam-controller:v0.0.1-rc27
+IMG = ghcr.io/vitistack/ipam-operator:0.0.1-rc27
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
