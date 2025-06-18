@@ -256,13 +256,6 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 		}
 	}
 
-	// Check if Metallb ip-address pool exists
-	// err = utils.GetIpAddressesToPool(d.Client, annotations)
-	// if err != nil {
-	// 	servicelog.Info("Invalid metallb ip-pool detected for Service", "name", service.GetName(), "address-pool", annotations["ipam.vitistack.io/zone"])
-	// 	return fmt.Errorf("invalid metallb ip-pool detected for Service: %s Error: %s", service.GetName(), err)
-	// }
-
 	// Request Addresses
 
 	ipFamily := annotations["ipam.vitistack.io/ip-family"]
@@ -591,12 +584,6 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 		if !slices.Contains(oldServicePrefixes, newAddr) {
 			newPrefixes = append(newPrefixes, newAddr)
 		}
-		// for _, newAddr := range newServicePrefixes {
-		// 	for _, oldAddr := range oldServicePrefixes {
-		// 		if newAddr != oldAddr {
-		// 			newPrefixes = append(newPrefixes, newAddr)
-		// 		}
-		// 	}
 	}
 
 	// Create a slice to hold addresses which should be updated
@@ -605,11 +592,6 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 		if slices.Contains(oldServicePrefixes, newAddr) {
 			keepPrefixes = append(keepPrefixes, newAddr)
 		}
-		// for _, oldAddr := range oldServicePrefixes {
-		// 	if newAddr == oldAddr {
-		// 		keepPrefixes = append(keepPrefixes, newAddr)
-		// 	}
-		// }
 	}
 
 	// Create a slice to hold addresses which should be removed
@@ -618,16 +600,6 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 		if !slices.Contains(newServicePrefixes, oldAddr) {
 			removePrefixes = append(removePrefixes, oldAddr)
 		}
-		// for _, oldAddr := range oldServicePrefixes {
-		// 	count := 0
-		// 	for _, newAddr := range newServicePrefixes {
-		// 		if oldAddr == newAddr {
-		// 			count++
-		// 		}
-		// 	}
-		// 	if count == 0 {
-		// 		removePrefixes = append(removePrefixes, oldAddr)
-		// 	}
 	}
 
 	// Return error if len(keepPrefixes) > 0 & change of adddress-family for newPrefixes
