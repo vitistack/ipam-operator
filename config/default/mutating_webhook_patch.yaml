@@ -27,3 +27,6 @@
 - op: replace
   path: /webhooks/0/failurePolicy
   value: Fail
+- op: add
+  path: /webhooks/0/timeoutSeconds
+  value: 30
