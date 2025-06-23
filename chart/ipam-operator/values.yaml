@@ -1,7 +1,9 @@
 global:
  urls:
    ipamApi: "https://ipam-api.test.vitistack.io"
- controllerImage: "ncr.sky.nhn.no/ghcr/vitistack/ipam-operator:0.0.1-rc31"
+ controller:
+   repository: "ncr.sky.nhn.no/ghcr/vitistack/ipam-operator"
+   tag: "0.0.1-rc31"
  caBundle:
    crt: |
       -----BEGIN CERTIFICATE-----

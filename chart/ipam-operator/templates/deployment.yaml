@@ -33,7 +33,7 @@ spec:
         envFrom:
         - configMapRef:
             name: ipam-controller-config
-        image: {{ .Values.global.controllerImage | lower | quote }}
+        image: "{{ .Values.global.controller.repository }}:{{ .Values.global.controller.tag | default .Chart.AppVersion }}"
         livenessProbe:
           httpGet:
             path: /healthz
