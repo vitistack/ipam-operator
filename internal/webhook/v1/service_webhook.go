@@ -699,6 +699,23 @@ func (v *ServiceCustomValidator) ValidateDelete(ctx context.Context, obj runtime
 		return nil, nil
 	}
 
+	// Check if Metallb Controller is actually running
+	var podList corev1.PodList
+	podSelector := client.MatchingLabels{"app": "metallb", "component": "controller"}
+	v.Client.List(ctx, &podList, client.InNamespace("metallb-system"), podSelector)
+	var podRunning bool
+	if len(podList.Items) > 0 {
+		for _, pod := range podList.Items {
+			if pod.Status.Phase == corev1.PodRunning {
+				podRunning = true
+			}
+		}
+	}
+	if !podRunning {
+		servicelog.Info("Metallb operator is not available. Please make sure Metallb is installed and running.")
+		return nil, fmt.Errorf("metallb operator is not available. Please make sure Metallb is installed and running")
+	}
+
 	// Get Service annotations, need "ipam.vitistack.io/zone" to remove IP addresses from correct IPAddressPool
 	annotations := service.GetAnnotations()
 
