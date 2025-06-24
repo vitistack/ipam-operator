@@ -674,6 +674,9 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 	if len(newPrefixes) > 0 {
 		utils.AddIpAddressesToPool(v.Client, newAnnotations, newPrefixes)
 	}
+	if len(keepPrefixes) > 0 {
+		utils.AddIpAddressesToPool(v.Client, newAnnotations, keepPrefixes)
+	}
 	if len(removePrefixes) > 0 {
 		utils.RemoveIPAddressesFromPool(v.Client, oldAnnotations, removePrefixes)
 	}
