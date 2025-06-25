@@ -119,26 +119,20 @@ func RemoveIPAddressesFromPool(d client.Client, annotations map[string]string, a
 	notInUseAddresses := []string{}
 	for _, addr := range addresses {
 		count := 0
-		if strings.Contains(addr, "/32") {
-			addr = addr[:len(addr)-3]
-		}
-		if strings.Contains(addr, "/128") {
-			addr = addr[:len(addr)-4]
-		}
 		for _, svc := range filteredAllServices {
-			for _, ingress := range svc.Status.LoadBalancer.Ingress {
+			for _, ingress := range strings.Split(svc.Annotations["ipam.vitistack.io/addresses"], ",") {
 				// Check if the address is in the Service Ingress addresses
-				if ingress.IP == addr {
+				if ingress == strings.Split(addr, "/")[0] {
 					count++
 				}
 			}
 		}
-		if count <= 1 {
+		if count == 1 {
 			if strings.Contains(addr, ".") {
-				addr = addr + "/32"
+				addr = strings.Split(addr, "/")[0] + "/32"
 			}
 			if strings.Contains(addr, ":") {
-				addr = addr + "/128"
+				addr = strings.Split(addr, "/")[0] + "/128"
 			}
 			notInUseAddresses = append(notInUseAddresses, addr)
 		}
