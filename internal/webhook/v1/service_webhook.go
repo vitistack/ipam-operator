@@ -503,7 +503,7 @@ func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime
 				servicelog.Info("Delete Validated IP-address failed!", "name", service.GetName(), "ip", addr, "Error", err)
 			}
 		}
-		return nil, fmt.Errorf("validation create failed for service %s, Error: %v", service.GetName(), err)
+		return nil, fmt.Errorf("validation create failed for service %s, Please verify f.ex secret!", service.GetName())
 	}
 
 	err = utils.AddIpAddressesToPool(v.Client, annotations, addrSlice)
