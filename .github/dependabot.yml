@@ -1,0 +1,59 @@
+version: 2
+
+# Dependabot configuration for ipam-operator
+# This file enables automated dependency update PRs.
+# Schedule: weekly on Sunday at 23:30 UTC (adjust time as desired)
+# Ecosystems covered: Go modules, Docker, GitHub Actions, Helm (charts)
+
+updates:
+  # Go modules in the root directory
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "23:30" # UTC
+    # Ignore large transient bumps to reduce noise (example)
+    # ignore:
+    #   - dependency-name: "k8s.io/*"
+    #     update-types: ["version-update:semver-major"]
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "deps(go)"
+
+  # Docker base images from Dockerfile
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "23:30"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps(docker)"
+
+  # GitHub Actions workflow dependencies (actions/* versions)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "23:30"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps(actions)"
+
+  # Helm chart dependencies (if requirements exist); still useful for OCI changes
+  - package-ecosystem: "helm"
+    directory: "/chart/ipam-operator"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "23:30"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps(helm)"
+
+# Notes:
+# - Consider enabling automerge (via GitHub settings or a workflow) for patch/minor updates after observing PR quality.
+# - Adjust time to match a low-traffic period in your region; Dependabot uses UTC.
