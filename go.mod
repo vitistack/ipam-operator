@@ -1,8 +1,8 @@
 module github.com/vitistack/ipam-operator
 
-go 1.24.4
+go 1.25.0
 
-godebug default=go1.24.4
+godebug default=go1.25.0
 
 require (
 	github.com/onsi/ginkgo/v2 v2.22.0
