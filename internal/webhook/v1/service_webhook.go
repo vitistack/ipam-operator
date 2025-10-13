@@ -41,6 +41,13 @@ import (
 	"github.com/vitistack/ipam-api/pkg/models/apicontracts"
 )
 
+const (
+	DualFamily   = "dual"
+	IPv4Family   = "ipv4"
+	IPv6Family   = "ipv6"
+	LoadBalancer = "LoadBalancer"
+)
+
 // nolint:unused
 // log is for logging in this package.
 var servicelog = logf.Log.WithName("ipam-operator")
@@ -89,12 +96,12 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 	req, _ := admission.RequestFromContext(ctx)
 
 	// Do not mutate if the service type is not LoadBalancer.
-	if service.Spec.Type != "LoadBalancer" && len(service.Status.LoadBalancer.Ingress) == 0 {
+	if service.Spec.Type != LoadBalancer && len(service.Status.LoadBalancer.Ingress) == 0 {
 		servicelog.Info("Not Mutating Service due to wrong .spec.type", "name", service.GetName(), "type", service.Spec.Type)
 		return nil
 	} else {
 		// Force spec type to LoadBalancer
-		service.Spec.Type = "LoadBalancer"
+		service.Spec.Type = LoadBalancer
 	}
 
 	// Detect dry run mode
@@ -126,7 +133,11 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 	// Check if Metallb Controller is actually running
 	var podList corev1.PodList
 	podSelector := client.MatchingLabels{"app": "metallb", "component": "controller"}
-	d.Client.List(ctx, &podList, client.InNamespace("metallb-system"), podSelector)
+
+	if err := d.Client.List(ctx, &podList, client.InNamespace("metallb-system"), podSelector); err != nil {
+		servicelog.Info("Failed to list Pods: Error: %v", err)
+		return fmt.Errorf("failed to list Pods: %w", err)
+	}
 	var podRunning bool
 	if len(podList.Items) > 0 {
 		for _, pod := range podList.Items {
@@ -175,13 +186,13 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 	// Set default annotations for missing IPAM annotations
 	annotations = utils.SetDefaultIpamAnnotations(annotations)
 	switch annotations["ipam.vitistack.io/ip-family"] {
-	case "ipv4":
+	case IPv4Family:
 		ipFamily := corev1.IPFamilyPolicySingleStack
 		service.Spec.IPFamilyPolicy = &ipFamily
-	case "ipv6":
+	case IPv6Family:
 		ipFamily := corev1.IPFamilyPolicySingleStack
 		service.Spec.IPFamilyPolicy = &ipFamily
-	case "dual":
+	case DualFamily:
 		ipFamily := corev1.IPFamilyPolicyRequireDualStack
 		service.Spec.IPFamilyPolicy = &ipFamily
 	case "default":
@@ -197,13 +208,13 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 
 	// Check if .spec.clusterIP is valid for ip-family during UPDATE
 	if req.Operation == "UPDATE" {
-		if annotations["ipam.vitistack.io/ip-family"] == "ipv4" {
+		if annotations["ipam.vitistack.io/ip-family"] == IPv4Family {
 			if !strings.Contains(service.Spec.ClusterIP, ".") {
 				servicelog.Info("Not allow to change ip-family, due to invalid ip-address in .spec.clusterIP, please re-create service with valid .spec.ipFamilies['ipv4']", "name", service.GetName())
 				return fmt.Errorf("not allow to change ip-family due to invalid ip-address in .spec.clusterIP, please re-create service with valid .spec.ipFamilies")
 			}
 		}
-		if annotations["ipam.vitistack.io/ip-family"] == "ipv6" {
+		if annotations["ipam.vitistack.io/ip-family"] == IPv6Family {
 			if !strings.Contains(service.Spec.ClusterIP, ":") {
 				servicelog.Info("Not allow to change ip-family, due to invalid ip-address in .spec.clusterIP, please re-create service with valid .spec.ipFamilies['ipv6']", "name", service.GetName())
 				return fmt.Errorf("not allow to change ip-family due to invalid ip-address in .spec.clusterIP, please re-create service with valid .spec.ipFamilies")
@@ -296,10 +307,10 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 	var retrievedAddress bool
 
 	switch ipFamily {
-	case "dual":
+	case DualFamily:
 		if !strings.Contains(annotations["ipam.vitistack.io/addresses"], ".") {
 			servicelog.Info("Request IPv4-address for Service:", "name", service.GetName())
-			requestIPv4AddrObject.IpFamily = "ipv4"
+			requestIPv4AddrObject.IpFamily = IPv4Family
 			responseIPv4AddrObject, err = utils.RequestIP(requestIPv4AddrObject)
 			if err != nil {
 				servicelog.Info("Request IPv4-address failed!", "name", service.GetName(), "Message", err)
@@ -312,7 +323,7 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 		}
 		if !strings.Contains(annotations["ipam.vitistack.io/addresses"], ":") {
 			servicelog.Info("Request IPv6-address for Service", "name", service.GetName())
-			requestIPv6AddrObject.IpFamily = "ipv6"
+			requestIPv6AddrObject.IpFamily = IPv6Family
 			responseIPv6AddrObject, err = utils.RequestIP(requestIPv6AddrObject)
 			if err != nil {
 				servicelog.Info("Request IPv6-address failed!", "name", service.GetName(), "Message", responseIPv6AddrObject.Message)
@@ -330,7 +341,7 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 			servicelog.Info("Received IPv6-address for Service:", "name", service.GetName(), "address", strings.Split(responseIPv6AddrObject.Address, "/")[0])
 			annotations = utils.UpdateAddressAnnotation(annotations, responseIPv6AddrObject.Address)
 		}
-	case "ipv4":
+	case IPv4Family:
 		if !strings.Contains(annotations["ipam.vitistack.io/addresses"], ".") {
 			servicelog.Info("Request IPv4-address for Service:", "name", service.GetName())
 			responseIPv4AddrObject, err := utils.RequestIP(requestAddrObject)
@@ -342,7 +353,7 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 			servicelog.Info("Received IPv4-address for Service:", "name", service.GetName(), "address", strings.Split(responseIPv4AddrObject.Address, "/")[0])
 			annotations = utils.UpdateAddressAnnotation(annotations, responseIPv4AddrObject.Address)
 		}
-	case "ipv6":
+	case IPv6Family:
 		if !strings.Contains(annotations["ipam.vitistack.io/addresses"], ":") {
 			servicelog.Info("Request IPv6-address for Service:", "name", service.GetName())
 			responseIPv6AddrObject, err := utils.RequestIP(requestAddrObject)
@@ -397,7 +408,7 @@ func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime
 	servicelog.Info("Validation Create Started for Service", "name", service.GetName())
 
 	// Do not validate if the service type is not LoadBalancer
-	if service.Spec.Type != "LoadBalancer" {
+	if service.Spec.Type != LoadBalancer {
 		servicelog.Info("Not Validating Service due to wrong .spec.type", "name", service.GetName(), "type", service.Spec.Type)
 		return nil, nil
 	}
@@ -534,7 +545,7 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 	servicelog.Info("Validation Update Started for Service", "name", newService.GetName())
 
 	// Do not validate if the service type is not LoadBalancer
-	if oldService.Spec.Type != "Loadbalancer" && newService.Spec.Type != "LoadBalancer" {
+	if oldService.Spec.Type != LoadBalancer && newService.Spec.Type != LoadBalancer {
 		servicelog.Info("Not Validating Service due to wrong .spec.type", "name", newService.GetName(), "type", newService.Spec.Type)
 		return nil, nil
 	}
@@ -552,7 +563,7 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 	}
 
 	// Support changing .Spec.Type
-	if oldService.Spec.Type != "LoadBalancer" {
+	if oldService.Spec.Type != LoadBalancer {
 		// Get Service annotations
 		annotations := oldService.GetAnnotations()
 		// If annotations are nil, initialize them
@@ -606,7 +617,9 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 	if len(keepPrefixes) > 0 && len(newPrefixes) > 0 {
 		if oldAnnotations["ipam.vitistack.io/zone"] != newAnnotations["ipam.vitistack.io/zone"] {
 			servicelog.Info("Change of zone is prohibited while keeping addresses from another zone", "service", newService.GetName())
-			utils.DeleteMultiplePrefixes(v.Client, newService, newPrefixes)
+			if _, err := utils.DeleteMultiplePrefixes(v.Client, newService, newPrefixes); err != nil {
+				servicelog.Info("Remove allocated ip-addresses failed:", "service", newService.GetName(), "Prefixes:", newPrefixes, "Error", err)
+			}
 			servicelog.Info("Remove allocated ip-addresses:", "service", newService.GetName(), "Prefixes:", newPrefixes)
 			return nil, fmt.Errorf("change of zone is prohibited while keeping addresses from another zone")
 		}
@@ -639,10 +652,14 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 		if err != nil {
 			if len(keepPrefixesSucceeded) == 0 {
 				servicelog.Info("Update failed for addresses to keep:", "name", newService.GetName(), "Error", err)
-				utils.DeleteMultiplePrefixes(v.Client, newService, newPrefixesSucceeded)
+				if _, err := utils.DeleteMultiplePrefixes(v.Client, newService, newPrefixesSucceeded); err != nil {
+					servicelog.Info("Remove allocated ip-addresses failed:", "service", newService.GetName(), "Prefixes:", newPrefixesSucceeded, "Error", err)
+				}
 			} else {
 				servicelog.Info("Delete requested new addresses:", "name", newService.GetName(), "Addresses", newPrefixesSucceeded)
-				utils.DeleteMultiplePrefixes(v.Client, newService, newPrefixesSucceeded)
+				if _, err := utils.DeleteMultiplePrefixes(v.Client, newService, newPrefixesSucceeded); err != nil {
+					servicelog.Info("Remove allocated ip-addresses failed:", "service", newService.GetName(), "Prefixes:", newPrefixesSucceeded, "Error", err)
+				}
 				servicelog.Info("Update failed, revert succeeded updates to keep:", "name", newService.GetName(), "Error", err)
 				_, err := utils.UpdateMultiplePrefixes(v.Client, newService, oldService, keepPrefixesSucceeded)
 				if err != nil {
@@ -662,9 +679,15 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 			if len(removePrefixesSucceeded) != 0 {
 				servicelog.Info("Remove addresses failed from IPAM-API:", "name", newService.GetName(), "Error", err)
 				servicelog.Info("Best effort reverting:", "name", newService.GetName(), "Error", err)
-				utils.RequestMultiplePrefixes(v.Client, oldService, removePrefixesSucceeded)
-				utils.DeleteMultiplePrefixes(v.Client, newService, newPrefixesSucceeded)
-				utils.UpdateMultiplePrefixes(v.Client, newService, oldService, keepPrefixesSucceeded)
+				if _, err := utils.RequestMultiplePrefixes(v.Client, oldService, removePrefixesSucceeded); err != nil {
+					servicelog.Info("Revert of removed addresses failed:", "name", newService.GetName(), "Error", err)
+				}
+				if _, err := utils.DeleteMultiplePrefixes(v.Client, newService, newPrefixesSucceeded); err != nil {
+					servicelog.Info("Remove allocated ip-addresses failed:", "service", newService.GetName(), "Prefixes:", newPrefixesSucceeded, "Error", err)
+				}
+				if _, err := utils.UpdateMultiplePrefixes(v.Client, newService, oldService, keepPrefixesSucceeded); err != nil {
+					servicelog.Info("Failed to revert succeeded updates for addresses to keep:", "name", newService.GetName(), "Error", err)
+				}
 			}
 			return nil, fmt.Errorf("failed to remove addresses during validate update: %v", err)
 		}
@@ -672,13 +695,19 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 
 	// Update Metallb AddressPool
 	if len(newPrefixes) > 0 {
-		utils.AddIpAddressesToPool(v.Client, newAnnotations, newPrefixes)
+		if err := utils.AddIpAddressesToPool(v.Client, newAnnotations, newPrefixes); err != nil {
+			servicelog.Info("Unable to add new IP-addresses to pool", "name", newService.GetName(), "pool", newAnnotations["ipam.vitistack.io/zone"], "Error", err)
+		}
 	}
 	if len(keepPrefixes) > 0 {
-		utils.AddIpAddressesToPool(v.Client, newAnnotations, keepPrefixes)
+		if err := utils.AddIpAddressesToPool(v.Client, newAnnotations, keepPrefixes); err != nil {
+			servicelog.Info("Unable to add existing IP-addresses to pool", "name", newService.GetName(), "pool", newAnnotations["ipam.vitistack.io/zone"], "Error", err)
+		}
 	}
 	if len(removePrefixes) > 0 {
-		utils.RemoveIPAddressesFromPool(v.Client, oldAnnotations, removePrefixes)
+		if err := utils.RemoveIPAddressesFromPool(v.Client, oldAnnotations, removePrefixes); err != nil {
+			servicelog.Info("Unable to remove old IP-addresses from pool", "name", newService.GetName(), "pool", oldAnnotations["ipam.vitistack.io/zone"], "Error", err)
+		}
 	}
 
 	servicelog.Info("Validation for Service upon update completed:", "name", newService.GetName())
@@ -697,7 +726,7 @@ func (v *ServiceCustomValidator) ValidateDelete(ctx context.Context, obj runtime
 
 	// Do not Validate if the service type is not LoadBalancer.
 
-	if service.Spec.Type != "LoadBalancer" {
+	if service.Spec.Type != LoadBalancer {
 		servicelog.Info("Not Mutating Service due to wrong .spec.type", "name", service.GetName(), "type", service.Spec.Type)
 		return nil, nil
 	}
@@ -705,7 +734,10 @@ func (v *ServiceCustomValidator) ValidateDelete(ctx context.Context, obj runtime
 	// Check if Metallb Controller is actually running
 	var podList corev1.PodList
 	podSelector := client.MatchingLabels{"app": "metallb", "component": "controller"}
-	v.Client.List(ctx, &podList, client.InNamespace("metallb-system"), podSelector)
+	if err := v.Client.List(ctx, &podList, client.InNamespace("metallb-system"), podSelector); err != nil {
+		servicelog.Info("Failed to list Pods: Error: %v", err)
+		return nil, fmt.Errorf("failed to list Pods: %w", err)
+	}
 	var podRunning bool
 	if len(podList.Items) > 0 {
 		for _, pod := range podList.Items {
@@ -738,7 +770,7 @@ func (v *ServiceCustomValidator) ValidateDelete(ctx context.Context, obj runtime
 	if err != nil {
 		return nil, fmt.Errorf("failed to remove IP addresses from IPAddressPool: %w", err)
 	} else {
-		servicelog.Info("Removed addresses successfull:", "name", service.GetName(), "Addresses", addresses)
+		servicelog.Info("Removed addresses successful:", "name", service.GetName(), "Addresses", addresses)
 	}
 
 	servicelog.Info("Validation for Service upon deletion completed:", "name", service.GetName())
