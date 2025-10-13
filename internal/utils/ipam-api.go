@@ -18,10 +18,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	DualFamily = "dual"
+	IPAMApiUrl = "IPAM_API_URL"
+	IPv6Family = "ipv6"
+	IPv4Family = "ipv4"
+)
+
 func RequestIP(request apicontracts.IpamApiRequest) (apicontracts.IpamApiResponse, error) {
 
 	// Get OS Environment Variable for IPAM API
-	envVar := "IPAM_API_URL"
+	envVar := IPAMApiUrl
 	ipamApiUrl := os.Getenv(envVar)
 	if ipamApiUrl == "" {
 		return apicontracts.IpamApiResponse{}, fmt.Errorf("environment variable for IPAM-API %s was not found", envVar)
@@ -31,13 +38,13 @@ func RequestIP(request apicontracts.IpamApiRequest) (apicontracts.IpamApiRespons
 	if strings.Contains(request.Address, ".") {
 		if !strings.Contains(request.Address, "/32") {
 			request.Address = request.Address + "/32"
-			request.IpFamily = "ipv4"
+			request.IpFamily = IPv4Family
 		}
 	}
 	if strings.Contains(request.Address, ":") {
 		if !strings.Contains(request.Address, "/128") {
 			request.Address = request.Address + "/128"
-			request.IpFamily = "ipv6"
+			request.IpFamily = IPv6Family
 		}
 	}
 
@@ -61,7 +68,12 @@ func RequestIP(request apicontracts.IpamApiRequest) (apicontracts.IpamApiRespons
 	if err != nil {
 		return apicontracts.IpamApiResponse{}, fmt.Errorf("fail to send request to: %v , error: %v", ipamApiUrl, err)
 	}
-	defer resp.Body.Close()
+
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			fmt.Printf("error closing response body: %s\n", err)
+		}
+	}()
 
 	// Decode the response (optional)
 	var responseData apicontracts.IpamApiResponse
@@ -81,7 +93,7 @@ func RequestIP(request apicontracts.IpamApiRequest) (apicontracts.IpamApiRespons
 func DeleteIP(request apicontracts.IpamApiRequest) (apicontracts.IpamApiResponse, error) {
 
 	// Get OS Environment Variable for IPAM API
-	envVar := "IPAM_API_URL"
+	envVar := IPAMApiUrl
 	ipamApiUrl := os.Getenv(envVar)
 	if ipamApiUrl == "" {
 		return apicontracts.IpamApiResponse{}, fmt.Errorf("environment variable %s was not found", envVar)
@@ -91,13 +103,13 @@ func DeleteIP(request apicontracts.IpamApiRequest) (apicontracts.IpamApiResponse
 	if strings.Contains(request.Address, ".") {
 		if !strings.Contains(request.Address, "/32") {
 			request.Address = request.Address + "/32"
-			request.IpFamily = "ipv4"
+			request.IpFamily = IPv4Family
 		}
 	}
 	if strings.Contains(request.Address, ":") {
 		if !strings.Contains(request.Address, "/128") {
 			request.Address = request.Address + "/128"
-			request.IpFamily = "ipv6"
+			request.IpFamily = IPv6Family
 		}
 	}
 
@@ -121,7 +133,12 @@ func DeleteIP(request apicontracts.IpamApiRequest) (apicontracts.IpamApiResponse
 	if err != nil {
 		return apicontracts.IpamApiResponse{}, err
 	}
-	defer resp.Body.Close()
+
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			fmt.Printf("error closing response body: %s\n", err)
+		}
+	}()
 
 	// Decode the response (optional)
 	var responseData apicontracts.IpamApiResponse
@@ -144,7 +161,7 @@ func RequestMultiplePrefixes(v client.Client, service *corev1.Service, prefixes 
 	var err error
 
 	// Get OS Environment Variable for IPAM API
-	envVar := "IPAM_API_URL"
+	envVar := IPAMApiUrl
 	ipamApiUrl := os.Getenv(envVar)
 	if ipamApiUrl == "" {
 		return nil, fmt.Errorf("environment variable %s was not found", envVar)
@@ -207,27 +224,27 @@ func RequestMultiplePrefixes(v client.Client, service *corev1.Service, prefixes 
 		},
 	}
 
-	// Post new requests and return succeded requests
+	// Post new requests and return succeeded requests
 
-	var succededRequests []string
+	var succeededRequests []string
 	var failedRequests error
 
 	for _, addr := range prefixes {
 		requestAddrObject.Address = addr
 		if strings.Contains(addr, ".") {
-			requestAddrObject.IpFamily = "ipv4"
+			requestAddrObject.IpFamily = IPv4Family
 		} else {
-			requestAddrObject.IpFamily = "ipv6"
+			requestAddrObject.IpFamily = IPv6Family
 		}
 		_, err := RequestIP(requestAddrObject)
 		if err != nil {
 			failedRequests = err
 		} else {
-			succededRequests = append(succededRequests, addr)
+			succeededRequests = append(succeededRequests, addr)
 		}
 	}
 
-	return succededRequests, failedRequests
+	return succeededRequests, failedRequests
 }
 
 func DeleteMultiplePrefixes(v client.Client, service *corev1.Service, prefixes []string) ([]string, error) {
@@ -236,7 +253,7 @@ func DeleteMultiplePrefixes(v client.Client, service *corev1.Service, prefixes [
 	var err error
 
 	// Get OS Environment Variable for IPAM API
-	envVar := "IPAM_API_URL"
+	envVar := IPAMApiUrl
 	ipamApiUrl := os.Getenv(envVar)
 	if ipamApiUrl == "" {
 		return nil, fmt.Errorf("environment variable %s was not found", envVar)
@@ -299,27 +316,27 @@ func DeleteMultiplePrefixes(v client.Client, service *corev1.Service, prefixes [
 		},
 	}
 
-	// Post new requests and return succeded requests
+	// Post new requests and return succeeded requests
 
-	var succededRequests []string
+	var succeededRequests []string
 	var failedRequests error
 
 	for _, addr := range prefixes {
 		requestAddrObject.Address = addr
 		if strings.Contains(addr, ".") {
-			requestAddrObject.IpFamily = "ipv4"
+			requestAddrObject.IpFamily = IPv4Family
 		} else {
-			requestAddrObject.IpFamily = "ipv6"
+			requestAddrObject.IpFamily = IPv6Family
 		}
 		_, err := DeleteIP(requestAddrObject)
 		if err != nil {
 			failedRequests = err
 		} else {
-			succededRequests = append(succededRequests, addr)
+			succeededRequests = append(succeededRequests, addr)
 		}
 	}
 
-	return succededRequests, failedRequests
+	return succeededRequests, failedRequests
 }
 
 func UpdateMultiplePrefixes(v client.Client, oldService *corev1.Service, newService *corev1.Service, prefixes []string) ([]string, error) {
@@ -328,7 +345,7 @@ func UpdateMultiplePrefixes(v client.Client, oldService *corev1.Service, newServ
 	var err error
 
 	// Get OS Environment Variable for IPAM API
-	envVar := "IPAM_API_URL"
+	envVar := IPAMApiUrl
 	ipamApiUrl := os.Getenv(envVar)
 	if ipamApiUrl == "" {
 		return nil, fmt.Errorf("environment variable %s was not found", envVar)
@@ -408,9 +425,9 @@ func UpdateMultiplePrefixes(v client.Client, oldService *corev1.Service, newServ
 		},
 	}
 
-	// Post new requests and return succeded requests
+	// Post new requests and return succeeded requests
 
-	var succededRequests []string
+	var succeededRequests []string
 	var failedRequests error
 
 	for _, addr := range prefixes {
@@ -419,16 +436,16 @@ func UpdateMultiplePrefixes(v client.Client, oldService *corev1.Service, newServ
 		if err != nil {
 			failedRequests = err
 		} else {
-			succededRequests = append(succededRequests, addr)
+			succeededRequests = append(succeededRequests, addr)
 		}
 	}
 
-	return succededRequests, failedRequests
+	return succeededRequests, failedRequests
 }
 
 func ValidIpAddressFamiliy(annotations map[string]string) error {
 
-	validIpFamilies := []string{"ipv4", "ipv6", "dual"}
+	validIpFamilies := []string{IPv4Family, IPv6Family, DualFamily}
 
 	if !slices.Contains(validIpFamilies, annotations["ipam.vitistack.io/ip-family"]) {
 		return fmt.Errorf("illegial specified ip-address family: %v , Valid Choices: ipv4,ipv6 & dual", annotations["ipam.vitistack.io/ip-family"])
