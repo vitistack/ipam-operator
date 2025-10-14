@@ -207,7 +207,7 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 	}
 
 	// Check if .spec.clusterIP is valid for ip-family during UPDATE
-	if req.Operation == "UPDATE" {
+	if req.Operation == "UPDATE" && service.Spec.ClusterIP != "" {
 		if annotations["ipam.vitistack.io/ip-family"] == IPv4Family {
 			if !strings.Contains(service.Spec.ClusterIP, ".") {
 				servicelog.Info("Not allow to change ip-family, due to invalid ip-address in .spec.clusterIP, please re-create service with valid .spec.ipFamilies['ipv4']", "name", service.GetName())
