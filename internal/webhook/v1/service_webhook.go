@@ -32,8 +32,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"reflect"
 
 	utils "github.com/vitistack/ipam-operator/internal/utils"
@@ -84,96 +82,65 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 	service, ok := obj.(*corev1.Service)
 
 	if !ok {
-		return fmt.Errorf("expected an Service object but got %T", obj)
+		return fmt.Errorf("mutation: expected an Service object but got %T", obj)
 	}
-
-	// TODO(user): fill in your defaulting logic.
-
-	// Start Mutating
-	servicelog.Info("Mutation Started for Service", "name", service.GetName())
 
 	// Get the admission request from the context!
 	req, _ := admission.RequestFromContext(ctx)
 
+	// Detect dry run mode
+	if *req.DryRun {
+		servicelog.Info("Mutation: Dry run mode detected, skipping mutating for Service:", "name", service.GetName())
+		return nil
+	}
+
+	// Start Mutating
+	servicelog.Info("Mutation: Started for Service", "name", service.GetName())
+
 	// Do not mutate if the service type is not LoadBalancer.
 	if service.Spec.Type != LoadBalancer && len(service.Status.LoadBalancer.Ingress) == 0 {
-		servicelog.Info("Not Mutating Service due to wrong .spec.type", "name", service.GetName(), "type", service.Spec.Type)
+		servicelog.Info("Mutation: Not Mutating Service due to wrong .spec.type", "name", service.GetName(), "type", service.Spec.Type)
 		return nil
 	} else {
 		// Force spec type to LoadBalancer
 		service.Spec.Type = LoadBalancer
 	}
 
-	// Detect dry run mode
-	if *req.DryRun {
-		servicelog.Info("Dry run mode detected, skipping mutating for Service:", "name", service.GetName())
-		return nil
-	}
-
 	// DryRun the object to check if it pass dry run validation.
-	servicelog.Info("Dry run .Spec:", "name", service.GetName())
-	if req.Operation == "CREATE" {
-		dryRunService := service.DeepCopy()
-		if err := d.Client.Create(context.TODO(), dryRunService, &client.CreateOptions{
-			DryRun: []string{metav1.DryRunAll},
-		}); err != nil {
-			servicelog.Info("Failed to dry run Service creation:", "name", service.GetName(), "error", err)
-			return fmt.Errorf("failed to dry run Service creation: %w", err)
-		}
-	} else {
-		dryRunService := service.DeepCopy()
-		if err := d.Client.Update(context.TODO(), dryRunService, &client.UpdateOptions{
-			DryRun: []string{metav1.DryRunAll},
-		}); err != nil {
-			servicelog.Info("Failed to dry run Service update:", "name", service.GetName(), "error", err)
-			return fmt.Errorf("failed to dry run Service update: %w", err)
-		}
+	servicelog.Info("Mutation: Dry run .spec Started:", "name", service.GetName())
+	if err := ValidateServiceSpec(ctx, d.Client, service, string(req.Operation)); err != nil {
+		servicelog.Info("Mutation: Dry run .spec Failed:", "name", service.GetName(), "error", err)
+		return err
 	}
 
 	// Check if Metallb Controller is actually running
-	var podList corev1.PodList
-	podSelector := client.MatchingLabels{"app": "metallb", "component": "controller"}
-
-	if err := d.Client.List(ctx, &podList, client.InNamespace("metallb-system"), podSelector); err != nil {
-		servicelog.Info("Failed to list Pods: Error: %v", err)
-		return fmt.Errorf("failed to list Pods: %w", err)
-	}
-	var podRunning bool
-	if len(podList.Items) > 0 {
-		for _, pod := range podList.Items {
-			if pod.Status.Phase == corev1.PodRunning {
-				podRunning = true
-			}
-		}
-	}
-	if !podRunning {
-		servicelog.Info("Metallb operator is not available. Please make sure Metallb is installed and running.")
-		return fmt.Errorf("metallb operator is not available. Please make sure Metallb is installed and running")
+	if err := ValidateMetallbOperator(ctx, d.Client); err != nil {
+		servicelog.Info("Mutation: Metallb operator is not available. Please make sure Metallb is installed and ready.")
+		return err
 	}
 
 	// Get default Secret in namespace "ipam-system", if it does not exist, create it.
 	secret, err := utils.GetDefaultSecret(d.Client)
 	if err != nil {
-		servicelog.Error(err, "Failed to get or create default secret")
+		servicelog.Error(err, "Mutation: Failed to get or create default secret")
 		return err
+	} else {
+		servicelog.Info("Mutation: Default secret found in namespace ipam-system")
 	}
-	servicelog.Info("Initialized default secret")
 
 	// Get kube-system namespace uid for cluster identification
-	getClusterNamespace := &corev1.Namespace{}
-	if err := d.Client.Get(context.TODO(), types.NamespacedName{Name: "kube-system"}, getClusterNamespace); err != nil {
-		servicelog.Error(err, "Failed to get kube-system namespace")
+	clusterId, err := GetClusterID(d.Client)
+	if err != nil {
+		servicelog.Info("Mutation: Failed to get cluster ID")
+		return err
 	}
-	clusterId := getClusterNamespace.GetUID()
-	// servicelog.Info("Cluster UID for Service:", "name", service.GetName(), "uid", clusterId)
 
 	// Get namespace uid for Service namespace identification
-	getNamespace := &corev1.Namespace{}
-	if err := d.Client.Get(context.TODO(), types.NamespacedName{Name: service.Namespace}, getNamespace); err != nil {
-		servicelog.Error(err, "Failed to get service namespace")
+	namespaceId, err := GetNameSpaceID(d.Client, service)
+	if err != nil {
+		servicelog.Info("Mutation: Failed to get namespace ID")
+		return err
 	}
-	namespaceId := getNamespace.GetUID()
-	// servicelog.Info("Namespace UID for Service:", "name", service.GetName(), "uid", namespaceId)
 
 	// Get Service annotations
 	annotations := service.GetAnnotations()
@@ -185,85 +152,25 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 
 	// Set default annotations for missing IPAM annotations
 	annotations = utils.SetDefaultIpamAnnotations(annotations)
-	switch annotations["ipam.vitistack.io/ip-family"] {
-	case IPv4Family:
-		ipFamily := corev1.IPFamilyPolicySingleStack
-		service.Spec.IPFamilyPolicy = &ipFamily
-	case IPv6Family:
-		ipFamily := corev1.IPFamilyPolicySingleStack
-		service.Spec.IPFamilyPolicy = &ipFamily
-	case DualFamily:
-		ipFamily := corev1.IPFamilyPolicyRequireDualStack
-		service.Spec.IPFamilyPolicy = &ipFamily
-	case "default":
-		servicelog.Info("Invalid IP-Family specification for Service:", "name", service.GetName())
-		return fmt.Errorf("invalid IP-Family specification for Service: %v", service.GetName())
+
+	// Reconcile annotations related to addresses and ip-family
+	if err := ReconcileAnnotationAddresses(annotations, service); err != nil {
+		servicelog.Info("Mutation: Reconcile of ip-family annotation failed", "name", service.GetName(), "Error:", err)
+		return err
 	}
 
-	// Validate if IP-address family is illegal
-	if err := utils.ValidIpAddressFamiliy(annotations); err != nil {
-		servicelog.Info("Illegal IP-address family", "name", service.GetName(), "Error:", err)
-		return fmt.Errorf("error: %v", err)
-	}
-
-	// Check if .spec.clusterIP is valid for ip-family during UPDATE
-	if req.Operation == "UPDATE" && service.Spec.ClusterIP != "" {
-		if annotations["ipam.vitistack.io/ip-family"] == IPv4Family {
-			if !strings.Contains(service.Spec.ClusterIP, ".") {
-				servicelog.Info("Not allow to change ip-family, due to invalid ip-address in .spec.clusterIP, please re-create service with valid .spec.ipFamilies['ipv4']", "name", service.GetName())
-				return fmt.Errorf("not allow to change ip-family due to invalid ip-address in .spec.clusterIP, please re-create service with valid .spec.ipFamilies")
-			}
-		}
-		if annotations["ipam.vitistack.io/ip-family"] == IPv6Family {
-			if !strings.Contains(service.Spec.ClusterIP, ":") {
-				servicelog.Info("Not allow to change ip-family, due to invalid ip-address in .spec.clusterIP, please re-create service with valid .spec.ipFamilies['ipv6']", "name", service.GetName())
-				return fmt.Errorf("not allow to change ip-family due to invalid ip-address in .spec.clusterIP, please re-create service with valid .spec.ipFamilies")
-			}
-		}
+	// Validate annotations boundaries
+	if err := utils.ValidateAnnotations(service.GetAnnotations()); err != nil {
+		servicelog.Info("Mutation: Invalid annotations for Service", "name", service.GetName(), "Error", err)
+		return err
 	}
 
 	// Replace default secret with custom secret if specified in annotations
 	if annotations["ipam.vitistack.io/secret"] != "default" {
 		secret, err = utils.GetCustomSecret(d.Client, service.Namespace, annotations)
 		if err != nil {
-			servicelog.Info("Failed to get Custom Secret for Service:", "name", service.GetName(), "secret", annotations["ipam.vitistack.io/secret"])
-			return fmt.Errorf("failed to get custom secret: %w", err)
-		}
-	}
-
-	// Validate annotations boundaries
-	if err := utils.ValidateAnnotations(service.GetAnnotations()); err != nil {
-		servicelog.Info("Invalid annotations for Service", "name", service.GetName(), "Error", err)
-		return fmt.Errorf("invalid annotations for Service %s: %w", service.GetName(), err)
-	}
-
-	// Validate if addresses is valid IPs
-	if annotations["ipam.vitistack.io/addresses"] != "" {
-		validIps := strings.Split(annotations["ipam.vitistack.io/addresses"], ",")
-		for _, ip := range validIps {
-			if !utils.IsValidIp(ip) {
-				servicelog.Info("Invalid IP-address detected for Service", "name", service.GetName(), "IP", ip)
-				return fmt.Errorf("invalid ip-address detected for Service: %s: %s", service.GetName(), ip)
-			}
-		}
-	}
-
-	// Validate if two or more addresses is within same addressFamily
-	if annotations["ipam.vitistack.io/addresses"] != "" {
-		sliceIps := strings.Split(annotations["ipam.vitistack.io/addresses"], ",")
-		var sliceIPv4Ips []string
-		var sliceIPv6Ips []string
-		for _, ip := range sliceIps {
-			if strings.Contains(ip, ".") {
-				sliceIPv4Ips = append(sliceIPv4Ips, ip)
-			}
-			if strings.Contains(ip, ":") {
-				sliceIPv6Ips = append(sliceIPv6Ips, ip)
-			}
-		}
-		if len(sliceIPv4Ips) > 1 || len(sliceIPv6Ips) > 1 {
-			servicelog.Info("Metallb supports only one (1) address pr ip-Family", "service", service.GetName())
-			return fmt.Errorf("metallb supports only one (1) address pr ip-family")
+			servicelog.Info("Mutation: Failed to get Custom Secret for Service:", "name", service.GetName(), "secret", annotations["ipam.vitistack.io/secret"])
+			return err
 		}
 	}
 
@@ -374,7 +281,7 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 	annotations["ipam.vitistack.io/addresses"] = strings.ReplaceAll(annotations["ipam.vitistack.io/addresses"], " ", "")
 	service.SetAnnotations(annotations)
 
-	servicelog.Info("Mutating Completed for Service", "name", service.GetName())
+	servicelog.Info("Mutation: Completed for Service", "name", service.GetName())
 
 	return nil
 }
@@ -398,32 +305,33 @@ var _ webhook.CustomValidator = &ServiceCustomValidator{}
 
 // ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type Service.
 func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+
 	service, ok := obj.(*corev1.Service)
 	if !ok {
 		return nil, fmt.Errorf("expected a Service object but got %T", obj)
 	}
-
-	// TODO(user): fill in your validation logic upon object creation.
-
-	servicelog.Info("Validation Create Started for Service", "name", service.GetName())
-
-	// Do not validate if the service type is not LoadBalancer
-	if service.Spec.Type != LoadBalancer {
-		servicelog.Info("Not Validating Service due to wrong .spec.type", "name", service.GetName(), "type", service.Spec.Type)
-		return nil, nil
-	}
-
-	// Initialize Error Object
-	var err error
 
 	// Get the admission request from the context!
 	req, _ := admission.RequestFromContext(ctx)
 
 	// Detect dry run mode
 	if *req.DryRun {
-		servicelog.Info("Dry run mode detected, skipping validate create for Service:", "name", service.GetName())
+		servicelog.Info("Validate Create: Dry run mode detected, skipping validate create for Service:", "name", service.GetName())
 		return nil, nil
 	}
+
+	// TODO(user): fill in your validation logic upon object creation.
+
+	servicelog.Info("Validate Create: Started for Service", "name", service.GetName())
+
+	// Do not validate if the service type is not LoadBalancer
+	if service.Spec.Type != LoadBalancer {
+		servicelog.Info("Validate Create: Not Validating Service due to wrong .spec.type", "name", service.GetName(), "type", service.Spec.Type)
+		return nil, nil
+	}
+
+	// Initialize Error Object
+	var err error
 
 	// Get kube-system namespace uid for cluster identification
 	getClusterNamespace := &corev1.Namespace{}
@@ -523,7 +431,7 @@ func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime
 		return nil, fmt.Errorf("unable to add IP-addresses to pool %s. Error: %s", annotations["ipam.vitistack.io/zone"], err)
 	}
 
-	servicelog.Info("Validation Create Completed for Service", "name", service.GetName())
+	servicelog.Info("Validate Create: Completed for Service", "name", service.GetName())
 
 	return nil, nil
 }

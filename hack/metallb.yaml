@@ -1,0 +1,28 @@
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: hnet-private
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - hnet-private
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: hnet-public
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - hnet-public
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: hnet-private
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - inet
+---
