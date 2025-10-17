@@ -20,12 +20,10 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -192,7 +190,9 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 		if err != nil {
 			servicelog.Info("Mutation:", "Message", err)
 			if retrievedIPv4Address.Address != "" {
-				_, err = RemoveAddressIpamAPI(retrievedIPv4Address.Address, IPv4Family, annotations, service, secret, string(clusterId), string(namespaceId))
+				if err := RemoveAddressIpamAPI(retrievedIPv4Address.Address, annotations, service, secret, string(clusterId), string(namespaceId)); err != nil {
+					servicelog.Info("Mutation: Failed to remove IPv4 address after IPv6 request failure for Service:", "name", service.GetName(), "ip", retrievedIPv4Address.Address, "Error", err)
+				}
 			}
 			return err
 		}
@@ -228,6 +228,9 @@ var _ webhook.CustomValidator = &ServiceCustomValidator{}
 // ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type Service.
 func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
 
+	// Initialize Error Object
+	var err error
+
 	service, ok := obj.(*corev1.Service)
 	if !ok {
 		return nil, fmt.Errorf("expected a Service object but got %T", obj)
@@ -242,8 +245,6 @@ func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime
 		return nil, nil
 	}
 
-	// TODO(user): fill in your validation logic upon object creation.
-
 	servicelog.Info("Validate Create: Started for Service", "name", service.GetName())
 
 	// Do not validate if the service type is not LoadBalancer
@@ -252,24 +253,19 @@ func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime
 		return nil, nil
 	}
 
-	// Initialize Error Object
-	var err error
-
 	// Get kube-system namespace uid for cluster identification
-	getClusterNamespace := &corev1.Namespace{}
-	if err := v.Client.Get(context.TODO(), types.NamespacedName{Name: "kube-system"}, getClusterNamespace); err != nil {
-		servicelog.Error(err, "Failed to get kube-system namespace")
+	clusterId, err := GetClusterID(v.Client)
+	if err != nil {
+		servicelog.Info("Mutation: Failed to get cluster ID")
+		return nil, err
 	}
-	clusterId := getClusterNamespace.GetUID()
-	// servicelog.Info("Cluster UID for Service:", "name", service.GetName(), "uid", clusterId)
 
 	// Get namespace uid for Service namespace identification
-	getNamespace := &corev1.Namespace{}
-	if err := v.Client.Get(context.TODO(), types.NamespacedName{Name: service.Namespace}, getNamespace); err != nil {
-		servicelog.Error(err, "Failed to get service namespace")
+	namespaceId, err := GetNameSpaceID(v.Client, service)
+	if err != nil {
+		servicelog.Info("Mutation: Failed to get namespace ID")
+		return nil, err
 	}
-	namespaceId := getNamespace.GetUID()
-	// servicelog.Info("Namespace UID for Service:", "name", service.GetName(), "uid", namespaceId)
 
 	// Get Service annotations
 	annotations := service.GetAnnotations()
@@ -279,78 +275,44 @@ func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime
 	if annotations["ipam.vitistack.io/secret"] == "default" {
 		secret, err = utils.GetDefaultSecret(v.Client)
 		if err != nil {
-			servicelog.Error(err, "Failed to get default secret")
+			servicelog.Info("Validate Create: Failed to get default secret. Error: %w", err)
 			return nil, err
 		}
 	} else {
 		secret, err = utils.GetCustomSecret(v.Client, service.Namespace, annotations)
 		if err != nil {
-			servicelog.Error(err, "Failed to get custom secret")
+			servicelog.Info("Validate Create: Failed to get custom secret. Error: %w", err)
 			return nil, err
 		}
 	}
 
-	// Create request object with pre-defined annotations
-	retentionPeriodDays := annotations["ipam.vitistack.io/retention-period-days"]
-	retentionPeriodDaysToInt, err := strconv.Atoi(retentionPeriodDays)
-	if err != nil {
-		servicelog.Info("Not able to convert byte retentionPeriodDays to Integer for Service:", "name", service.GetName())
-		return nil, fmt.Errorf("not able to convert byte retentionPeriodDays to Integer")
-	}
-
-	denyExternalCleanup := annotations["ipam.vitistack.io/deny-external-cleanup"]
-	denyExternalCleanupToBool, err := strconv.ParseBool(denyExternalCleanup)
-	if err != nil {
-		servicelog.Info("Not able to convert string denyExternalCleanup to Bool for Service:", "name", service.GetName())
-		return nil, fmt.Errorf("not able to convert string denyExternalCleanup to Bool for Service %s", service.GetName())
-	}
-
-	requestAddrObject := apicontracts.IpamApiRequest{
-		Secret:   string(secret.Data["secret"]),
-		Zone:     annotations["ipam.vitistack.io/zone"],
-		IpFamily: annotations["ipam.vitistack.io/ip-family"],
-		Service: apicontracts.Service{
-			ServiceName:         service.GetName(),
-			NamespaceId:         string(namespaceId),
-			ClusterId:           string(clusterId),
-			RetentionPeriodDays: retentionPeriodDaysToInt,
-			DenyExternalCleanup: denyExternalCleanupToBool,
-		},
-	}
-
 	// Validate addresses against IPAM API
 	addrSlice := strings.Split(annotations["ipam.vitistack.io/addresses"], ",")
-
-	var validateFailed bool
 	var validatedAddresses []string
+	var validateFailed bool
 
 	for _, addr := range addrSlice {
-		requestAddrObject.Address = addr
-		_, err := utils.RequestIP(requestAddrObject)
-		if err != nil {
-			servicelog.Info("Validate IP-address failed!", "name", service.GetName(), "ip", addr, "error", err)
+		servicelog.Info("Validate Create: Validating IP-address:", "name", service.GetName(), "ip", addr)
+		if _, err := UpdateAddressIpamAPI(addr, annotations, service, secret, string(clusterId), string(namespaceId)); err != nil {
+			servicelog.Info("Validate Create: IP-address failed!", "name", service.GetName(), "ip", addr, "error", err)
 			validateFailed = true
-		} else {
-			servicelog.Info("Validate IP-address succeeded!", "name", service.GetName(), "ip", addr)
-			validatedAddresses = append(validatedAddresses, addr)
+			break
 		}
+		validatedAddresses = append(validatedAddresses, addr)
 	}
 
-	// Remove Validated Addresses if validateFailed true
 	if validateFailed {
 		for _, addr := range validatedAddresses {
-			_, err := utils.DeleteIP(requestAddrObject)
-			if err != nil {
-				servicelog.Info("Delete Validated IP-address failed!", "name", service.GetName(), "ip", addr, "Error", err)
+			if err := RemoveAddressIpamAPI(addr, annotations, service, secret, string(clusterId), string(namespaceId)); err != nil {
+				servicelog.Info("Validate Create: Delete Validated IP-address failed!", "name", service.GetName(), "ip", addr, "Error", err)
 			}
 		}
 		return nil, fmt.Errorf("validation create failed for service %s, Please verify f.ex secret!", service.GetName())
 	}
 
-	err = utils.AddIpAddressesToPool(v.Client, annotations, addrSlice)
-	if err != nil {
+	if err := utils.AddIpAddressesToPool(v.Client, annotations, addrSlice); err != nil {
 		servicelog.Info("Unable to add IP-addresses to pool", "name", service.GetName(), "pool", annotations["ipam.vitistack.io/zone"], "Error", err)
-		return nil, fmt.Errorf("unable to add IP-addresses to pool %s. Error: %s", annotations["ipam.vitistack.io/zone"], err)
+		return nil, err
 	}
 
 	servicelog.Info("Validate Create: Completed for Service", "name", service.GetName())
