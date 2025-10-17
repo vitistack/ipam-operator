@@ -44,8 +44,8 @@ func UpdateAddressIpamAPI(ipAddress string, annotations map[string]string, servi
 		Address:  ipAddress,
 		Service: apicontracts.Service{
 			ServiceName:         service.GetName(),
-			NamespaceId:         string(namespaceId),
-			ClusterId:           string(clusterId),
+			NamespaceId:         namespaceId,
+			ClusterId:           clusterId,
 			RetentionPeriodDays: retentionPeriodDaysToInt,
 			DenyExternalCleanup: denyExternalCleanupToBool,
 		},

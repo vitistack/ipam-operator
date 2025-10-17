@@ -177,7 +177,7 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 	var retrievedIPv4Address, retrievedIPv6Address apicontracts.IpamApiResponse
 
 	if !strings.Contains(annotations["ipam.vitistack.io/addresses"], ".") && (ipFamily == IPv4Family || ipFamily == DualFamily) {
-		retrievedIPv4Address, err = GetAddressIpamAPI(IPv4Family, annotations, service, secret, string(clusterId), string(namespaceId))
+		retrievedIPv4Address, err = GetAddressIpamAPI(IPv4Family, annotations, service, secret, clusterId, namespaceId)
 		if err != nil {
 			servicelog.Info("Mutation:", "Message", err)
 			return err
@@ -186,11 +186,11 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 	}
 
 	if !strings.Contains(annotations["ipam.vitistack.io/addresses"], ":") && (ipFamily == IPv6Family || ipFamily == DualFamily) {
-		retrievedIPv6Address, err = GetAddressIpamAPI(IPv6Family, annotations, service, secret, string(clusterId), string(namespaceId))
+		retrievedIPv6Address, err = GetAddressIpamAPI(IPv6Family, annotations, service, secret, clusterId, namespaceId)
 		if err != nil {
 			servicelog.Info("Mutation:", "Message", err)
 			if retrievedIPv4Address.Address != "" {
-				if err := RemoveAddressIpamAPI(retrievedIPv4Address.Address, annotations, service, secret, string(clusterId), string(namespaceId)); err != nil {
+				if err := RemoveAddressIpamAPI(retrievedIPv4Address.Address, annotations, service, secret, clusterId, namespaceId); err != nil {
 					servicelog.Info("Mutation: Failed to remove IPv4 address after IPv6 request failure for Service:", "name", service.GetName(), "ip", retrievedIPv4Address.Address, "Error", err)
 				}
 			}
@@ -288,12 +288,12 @@ func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime
 
 	// Validate addresses against IPAM API
 	addrSlice := strings.Split(annotations["ipam.vitistack.io/addresses"], ",")
-	var validatedAddresses []string
+	validatedAddresses := make([]string, 0, len(addrSlice))
 	var validateFailed bool
 
 	for _, addr := range addrSlice {
 		servicelog.Info("Validate Create: Validating IP-address:", "name", service.GetName(), "ip", addr)
-		if _, err := UpdateAddressIpamAPI(addr, annotations, service, secret, string(clusterId), string(namespaceId)); err != nil {
+		if _, err := UpdateAddressIpamAPI(addr, annotations, service, secret, clusterId, namespaceId); err != nil {
 			servicelog.Info("Validate Create: IP-address failed!", "name", service.GetName(), "ip", addr, "error", err)
 			validateFailed = true
 			break
@@ -303,7 +303,7 @@ func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime
 
 	if validateFailed {
 		for _, addr := range validatedAddresses {
-			if err := RemoveAddressIpamAPI(addr, annotations, service, secret, string(clusterId), string(namespaceId)); err != nil {
+			if err := RemoveAddressIpamAPI(addr, annotations, service, secret, clusterId, namespaceId); err != nil {
 				servicelog.Info("Validate Create: Delete Validated IP-address failed!", "name", service.GetName(), "ip", addr, "Error", err)
 			}
 		}

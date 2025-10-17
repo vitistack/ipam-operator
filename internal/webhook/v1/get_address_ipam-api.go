@@ -33,8 +33,8 @@ func GetAddressIpamAPI(ipFamily string, annotations map[string]string, service *
 		IpFamily: ipFamily,
 		Service: apicontracts.Service{
 			ServiceName:         service.GetName(),
-			NamespaceId:         string(namespaceId),
-			ClusterId:           string(clusterId),
+			NamespaceId:         namespaceId,
+			ClusterId:           clusterId,
 			RetentionPeriodDays: retentionPeriodDaysToInt,
 			DenyExternalCleanup: denyExternalCleanupToBool,
 		},
