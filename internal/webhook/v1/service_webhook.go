@@ -174,107 +174,29 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 		}
 	}
 
-	// Request Addresses
-
+	// Request Addresses from IPAM API
 	ipFamily := annotations["ipam.vitistack.io/ip-family"]
+	var retrievedIPv4Address, retrievedIPv6Address apicontracts.IpamApiResponse
 
-	retentionPeriodDays := annotations["ipam.vitistack.io/retention-period-days"]
-	retentionPeriodDaysToInt, err := strconv.Atoi(retentionPeriodDays)
-	if err != nil {
-		servicelog.Info("Not able to convert byte retentionPeriodDays to Integer for Service:", "name", service.GetName())
-		return fmt.Errorf("not able to convert byte retentionPeriodDays to Integer")
+	if !strings.Contains(annotations["ipam.vitistack.io/addresses"], ".") && (ipFamily == IPv4Family || ipFamily == DualFamily) {
+		retrievedIPv4Address, err = GetAddressIpamAPI(IPv4Family, annotations, service, secret, string(clusterId), string(namespaceId))
+		if err != nil {
+			servicelog.Info("Mutation:", "Message", err)
+			return err
+		}
+		annotations = utils.UpdateAddressAnnotation(annotations, retrievedIPv4Address.Address)
 	}
 
-	denyExternalCleanup := annotations["ipam.vitistack.io/deny-external-cleanup"]
-	denyExternalCleanupToBool, err := strconv.ParseBool(denyExternalCleanup)
-	if err != nil {
-		servicelog.Info("Not able to convert string denyExternalCleanup to Bool for Service:", "name", service.GetName())
-		return fmt.Errorf("not able to convert string denyExternalCleanup to Bool for Service %s", service.GetName())
-	}
-
-	requestAddrObject := apicontracts.IpamApiRequest{
-		Secret:   string(secret.Data["secret"]),
-		Zone:     annotations["ipam.vitistack.io/zone"],
-		IpFamily: annotations["ipam.vitistack.io/ip-family"],
-		Service: apicontracts.Service{
-			ServiceName:         service.GetName(),
-			NamespaceId:         string(namespaceId),
-			ClusterId:           string(clusterId),
-			RetentionPeriodDays: retentionPeriodDaysToInt,
-			DenyExternalCleanup: denyExternalCleanupToBool,
-		},
-	}
-
-	requestIPv4AddrObject := requestAddrObject
-	var responseIPv4AddrObject apicontracts.IpamApiResponse
-
-	requestIPv6AddrObject := requestAddrObject
-	var responseIPv6AddrObject apicontracts.IpamApiResponse
-
-	var retrievedAddress bool
-
-	switch ipFamily {
-	case DualFamily:
-		if !strings.Contains(annotations["ipam.vitistack.io/addresses"], ".") {
-			servicelog.Info("Request IPv4-address for Service:", "name", service.GetName())
-			requestIPv4AddrObject.IpFamily = IPv4Family
-			responseIPv4AddrObject, err = utils.RequestIP(requestIPv4AddrObject)
-			if err != nil {
-				servicelog.Info("Request IPv4-address failed!", "name", service.GetName(), "Message", err)
-				return fmt.Errorf("request ipv4-address failed for Service: %s Message: %s", service.GetName(), err)
+	if !strings.Contains(annotations["ipam.vitistack.io/addresses"], ":") && (ipFamily == IPv6Family || ipFamily == DualFamily) {
+		retrievedIPv6Address, err = GetAddressIpamAPI(IPv6Family, annotations, service, secret, string(clusterId), string(namespaceId))
+		if err != nil {
+			servicelog.Info("Mutation:", "Message", err)
+			if retrievedIPv4Address.Address != "" {
+				_, err = RemoveAddressIpamAPI(retrievedIPv4Address.Address, IPv4Family, annotations, service, secret, string(clusterId), string(namespaceId))
 			}
-			requestIPv4AddrObject.Address = responseIPv4AddrObject.Address
-			servicelog.Info("Received IPv4-address for Service", "name", service.GetName(), "address", strings.Split(responseIPv4AddrObject.Address, "/")[0])
-			retrievedAddress = true
-			annotations = utils.UpdateAddressAnnotation(annotations, responseIPv4AddrObject.Address)
+			return err
 		}
-		if !strings.Contains(annotations["ipam.vitistack.io/addresses"], ":") {
-			servicelog.Info("Request IPv6-address for Service", "name", service.GetName())
-			requestIPv6AddrObject.IpFamily = IPv6Family
-			responseIPv6AddrObject, err = utils.RequestIP(requestIPv6AddrObject)
-			if err != nil {
-				servicelog.Info("Request IPv6-address failed!", "name", service.GetName(), "Message", responseIPv6AddrObject.Message)
-				if retrievedAddress {
-					servicelog.Info("Delete previously allocated IPv4-address for Service:", "name", service.GetName(), "ip", requestIPv4AddrObject.Address)
-					_, err = utils.DeleteIP(requestIPv4AddrObject)
-					if err != nil {
-						servicelog.Info("Delete previously allocated IPv4-address failed for Service:", "name", service.GetName(), "Error", err)
-						return fmt.Errorf("delete previously allocated IPv4-address failed for Service: %s Message: %s", service.GetName(), err)
-					}
-				}
-				return fmt.Errorf("request ipv6-address failed for Service: %s Message: %s", service.GetName(), responseIPv6AddrObject.Message)
-			}
-			requestIPv6AddrObject.Address = responseIPv6AddrObject.Address
-			servicelog.Info("Received IPv6-address for Service:", "name", service.GetName(), "address", strings.Split(responseIPv6AddrObject.Address, "/")[0])
-			annotations = utils.UpdateAddressAnnotation(annotations, responseIPv6AddrObject.Address)
-		}
-	case IPv4Family:
-		if !strings.Contains(annotations["ipam.vitistack.io/addresses"], ".") {
-			servicelog.Info("Request IPv4-address for Service:", "name", service.GetName())
-			responseIPv4AddrObject, err := utils.RequestIP(requestAddrObject)
-			if err != nil {
-				servicelog.Info("Request IPv4-address failed!", "name", service.GetName(), "Message", err)
-				return fmt.Errorf("request ipv4-address failed for Service: %s Message: %s", service.GetName(), err)
-			}
-			requestIPv4AddrObject.Address = responseIPv4AddrObject.Address
-			servicelog.Info("Received IPv4-address for Service:", "name", service.GetName(), "address", strings.Split(responseIPv4AddrObject.Address, "/")[0])
-			annotations = utils.UpdateAddressAnnotation(annotations, responseIPv4AddrObject.Address)
-		}
-	case IPv6Family:
-		if !strings.Contains(annotations["ipam.vitistack.io/addresses"], ":") {
-			servicelog.Info("Request IPv6-address for Service:", "name", service.GetName())
-			responseIPv6AddrObject, err := utils.RequestIP(requestAddrObject)
-			if err != nil {
-				servicelog.Info("Request IPv6-address failed!", "name", service.GetName(), "Message", err)
-				return fmt.Errorf("request ipv6-address failed for Service: %s Message: %s", service.GetName(), err)
-			}
-			requestIPv6AddrObject.Address = responseIPv6AddrObject.Address
-			servicelog.Info("Received IPv6-address for Service:", "name", service.GetName(), "address", strings.Split(responseIPv6AddrObject.Address, "/")[0])
-			annotations = utils.UpdateAddressAnnotation(annotations, responseIPv6AddrObject.Address)
-		}
-	default:
-		servicelog.Info("Invalid ipFamily detected for Service:", "name", service.GetName(), "ipFamily", ipFamily)
-		return fmt.Errorf("invalid ipFamily detected for Service: %s: %s", service.GetName(), ipFamily)
+		annotations = utils.UpdateAddressAnnotation(annotations, retrievedIPv6Address.Address)
 	}
 
 	// Update annotations
