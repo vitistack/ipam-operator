@@ -410,6 +410,11 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 
 	// Update Secret for prefixes to keep
 	if err := UpdateSecret(keepPrefixes, oldAnnotations, newAnnotations, oldService, newService, oldSecret, newSecret, clusterId, namespaceId); err != nil {
+		for _, addr := range newPrefixes {
+			if err := RemoveAddressIpamAPI(addr, newAnnotations, newService, newSecret, clusterId, namespaceId); err != nil {
+				servicelog.Info("Validate Update: Failed to remove newly acquired IP-address", "service", newService.GetName(), "ip", addr, "Error", err)
+			}
+		}
 		return nil, err
 	}
 
