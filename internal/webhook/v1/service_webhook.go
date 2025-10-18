@@ -390,7 +390,6 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 		if len(newPrefixes) > 0 {
 			if err := RemoveAddressIpamAPI(newPrefixes[0], newAnnotations, newService, newSecret, clusterId, namespaceId); err != nil {
 				servicelog.Info("Validate Update: Failed to remove (best effort) newly requested address after zone change detected", "service", newService.GetName(), "ip", newPrefixes[0], "Error", err)
-				return nil, err
 			}
 		}
 		servicelog.Info("Validate Update: Change of zone is prohibited while requesting keeping old addresses", "service", newService.GetName())
