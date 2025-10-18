@@ -29,9 +29,9 @@ func UpdateAddressIpamAPI(ipAddress string, annotations map[string]string, servi
 	// Determine IP Family
 	var ipFamily string
 	if utils.IsIPv4(ipAddress) {
-		ipFamily = "ipv4"
+		ipFamily = IPv4Family
 	} else if utils.IsIPv6(ipAddress) {
-		ipFamily = "ipv6"
+		ipFamily = IPv6Family
 	} else {
 		return apicontracts.IpamApiResponse{}, fmt.Errorf("invalid IP address format for Service %s", service.GetName())
 	}

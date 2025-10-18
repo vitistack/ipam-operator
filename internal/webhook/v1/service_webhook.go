@@ -19,7 +19,6 @@ package v1
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -117,15 +116,6 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 		return err
 	}
 
-	// Get default Secret in namespace "ipam-system", if it does not exist, create it.
-	secret, err := utils.GetDefaultSecret(d.Client)
-	if err != nil {
-		servicelog.Error(err, "Mutation: Failed to get or create default secret")
-		return err
-	} else {
-		servicelog.Info("Mutation: Default secret found in namespace ipam-system")
-	}
-
 	// Get kube-system namespace uid for cluster identification
 	clusterId, err := GetClusterID(d.Client)
 	if err != nil {
@@ -163,13 +153,11 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 		return err
 	}
 
-	// Replace default secret with custom secret if specified in annotations
-	if annotations["ipam.vitistack.io/secret"] != "default" {
-		secret, err = utils.GetCustomSecret(d.Client, service.Namespace, annotations)
-		if err != nil {
-			servicelog.Info("Mutation: Failed to get Custom Secret for Service:", "name", service.GetName(), "secret", annotations["ipam.vitistack.io/secret"])
-			return err
-		}
+	// Get Secret
+	secret, err := GetSecret(annotations, service, d.Client)
+	if err != nil {
+		servicelog.Info("Mutation: Failed to get secret", "error", err)
+		return err
 	}
 
 	// Request Addresses from IPAM API
@@ -256,14 +244,14 @@ func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime
 	// Get kube-system namespace uid for cluster identification
 	clusterId, err := GetClusterID(v.Client)
 	if err != nil {
-		servicelog.Info("Mutation: Failed to get cluster ID")
+		servicelog.Info("Validate Create: Failed to get cluster ID")
 		return nil, err
 	}
 
 	// Get namespace uid for Service namespace identification
 	namespaceId, err := GetNameSpaceID(v.Client, service)
 	if err != nil {
-		servicelog.Info("Mutation: Failed to get namespace ID")
+		servicelog.Info("Validate Create: Failed to get namespace ID")
 		return nil, err
 	}
 
@@ -271,19 +259,10 @@ func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime
 	annotations := service.GetAnnotations()
 
 	// Get Secret
-	var secret *corev1.Secret
-	if annotations["ipam.vitistack.io/secret"] == "default" {
-		secret, err = utils.GetDefaultSecret(v.Client)
-		if err != nil {
-			servicelog.Info("Validate Create: Failed to get default secret. Error: %w", err)
-			return nil, err
-		}
-	} else {
-		secret, err = utils.GetCustomSecret(v.Client, service.Namespace, annotations)
-		if err != nil {
-			servicelog.Info("Validate Create: Failed to get custom secret. Error: %w", err)
-			return nil, err
-		}
+	secret, err := GetSecret(annotations, service, v.Client)
+	if err != nil {
+		servicelog.Info("Validate Crate: Failed to get secret", "error", err)
+		return nil, err
 	}
 
 	// Validate addresses against IPAM API
@@ -307,7 +286,7 @@ func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime
 				servicelog.Info("Validate Create: Delete Validated IP-address failed!", "name", service.GetName(), "ip", addr, "Error", err)
 			}
 		}
-		return nil, fmt.Errorf("validation create failed for service %s, Please verify f.ex secret!", service.GetName())
+		return nil, fmt.Errorf("validation create failed for service %s, Please verify f.ex secret", service.GetName())
 	}
 
 	if err := utils.AddIpAddressesToPool(v.Client, annotations, addrSlice); err != nil {
@@ -332,29 +311,24 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 		return nil, fmt.Errorf("expected a Service object for the oldObj but got %T", oldObj)
 	}
 
-	// TODO(user): fill in your validation logic upon object update.
-
-	servicelog.Info("Validation Update Started for Service", "name", newService.GetName())
-
-	// Do not validate if the service type is not LoadBalancer
-	if oldService.Spec.Type != LoadBalancer && newService.Spec.Type != LoadBalancer {
-		servicelog.Info("Not Validating Service due to wrong .spec.type", "name", newService.GetName(), "type", newService.Spec.Type)
-		return nil, nil
-	}
-
-	// Set variable err
-	var err error
-
 	// Get the admission request from the context!
 	req, _ := admission.RequestFromContext(ctx)
 
 	// Detect dry run mode
 	if *req.DryRun {
-		servicelog.Info("Dry run mode detected, skipping validate update for Service:", "name", newService.GetName())
+		servicelog.Info("Validate Update: Dry run mode detected, skipping validate create for Service:", "name", oldService.GetName())
 		return nil, nil
 	}
 
-	// Support changing .Spec.Type
+	servicelog.Info("Validation Update: Started for Service", "name", newService.GetName())
+
+	// Do not validate if the service type is not LoadBalancer
+	if oldService.Spec.Type != LoadBalancer && newService.Spec.Type != LoadBalancer {
+		servicelog.Info("Validate Update: Not Validating Service due to wrong .spec.type", "name", newService.GetName(), "type", newService.Spec.Type)
+		return nil, nil
+	}
+
+	// Allow change of .spec.Type (corner case) after creation
 	if oldService.Spec.Type != LoadBalancer {
 		// Get Service annotations
 		annotations := oldService.GetAnnotations()
@@ -365,6 +339,20 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 		oldService.SetAnnotations(utils.SetDefaultIpamAnnotations(annotations))
 	}
 
+	// Get kube-system namespace uid for cluster identification
+	clusterId, err := GetClusterID(v.Client)
+	if err != nil {
+		servicelog.Info("Validate Update: Failed to get cluster ID")
+		return nil, err
+	}
+
+	// Get namespace uid for Service namespace identification
+	namespaceId, err := GetNameSpaceID(v.Client, oldService)
+	if err != nil {
+		servicelog.Info("Validate Update: Failed to get namespace ID")
+		return nil, err
+	}
+
 	// Get Service annotations from old and new Service objects
 	oldAnnotations := utils.FilterMapByPrefix(oldService.GetAnnotations(), "ipam.vitistack.io/")
 	newAnnotations := utils.FilterMapByPrefix(newService.GetAnnotations(), "ipam.vitistack.io/")
@@ -372,8 +360,7 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 	// Validate Annotions
 	compareAnnotations := reflect.DeepEqual(oldAnnotations, newAnnotations)
 	if compareAnnotations {
-		servicelog.Info("No changes in annotations, skipping update validation", "name", newService.GetName())
-		servicelog.Info("Validation for Service upon update completed:", "name", newService.GetName())
+		servicelog.Info("Validate Update: No changes in annotations, skipping further update validation", "name", newService.GetName())
 		return nil, nil
 	}
 
@@ -381,128 +368,75 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 	newServicePrefixes := strings.Split(newAnnotations["ipam.vitistack.io/addresses"], ",")
 	oldServicePrefixes := strings.Split(oldAnnotations["ipam.vitistack.io/addresses"], ",")
 
-	// Create a slice to hold addresses which should be added
-	newPrefixes := []string{}
-	for _, newAddr := range newServicePrefixes {
-		if !slices.Contains(oldServicePrefixes, newAddr) {
-			newPrefixes = append(newPrefixes, newAddr)
-		}
+	// Get differences between old and new addresses
+	newPrefixes, keepPrefixes, removePrefixes := utils.PrefixSlicesDiff(oldServicePrefixes, newServicePrefixes)
+
+	// Get Secrets
+
+	oldSecret, err := GetSecret(oldAnnotations, oldService, v.Client)
+	if err != nil {
+		servicelog.Info("Validate Update: Failed to get old secret", "error", err)
+		return nil, err
 	}
 
-	// Create a slice to hold addresses which should be updated
-	keepPrefixes := []string{}
-	for _, newAddr := range newServicePrefixes {
-		if slices.Contains(oldServicePrefixes, newAddr) {
-			keepPrefixes = append(keepPrefixes, newAddr)
-		}
+	newSecret, err := GetSecret(newAnnotations, newService, v.Client)
+	if err != nil {
+		servicelog.Info("Validate Update: Failed to get new secret", "error", err)
+		return nil, err
 	}
 
-	// Create a slice to hold addresses which should be removed
-	removePrefixes := []string{}
-	for _, oldAddr := range oldServicePrefixes {
-		if !slices.Contains(newServicePrefixes, oldAddr) {
-			removePrefixes = append(removePrefixes, oldAddr)
-		}
-	}
-
-	// Return error if len(keepPrefixes) > 0 & change of adddress-family for newPrefixes
-	if len(keepPrefixes) > 0 && len(newPrefixes) > 0 {
-		if oldAnnotations["ipam.vitistack.io/zone"] != newAnnotations["ipam.vitistack.io/zone"] {
-			servicelog.Info("Change of zone is prohibited while keeping addresses from another zone", "service", newService.GetName())
-			if _, err := utils.DeleteMultiplePrefixes(v.Client, newService, newPrefixes); err != nil {
-				servicelog.Info("Remove allocated ip-addresses failed:", "service", newService.GetName(), "Prefixes:", newPrefixes, "Error", err)
+	// Return an error if oldPrefixes and newPrefixes does not belong to the same zone
+	if (oldAnnotations["ipam.vitistack.io/zone"] != newAnnotations["ipam.vitistack.io/zone"]) && len(keepPrefixes) > 0 {
+		if len(newPrefixes) > 0 {
+			if err := RemoveAddressIpamAPI(newPrefixes[0], newAnnotations, newService, newSecret, clusterId, namespaceId); err != nil {
+				servicelog.Info("Validate Update: Failed to remove (best effort) newly requested address after zone change detected", "service", newService.GetName(), "ip", newPrefixes[0], "Error", err)
+				return nil, err
 			}
-			servicelog.Info("Remove allocated ip-addresses:", "service", newService.GetName(), "Prefixes:", newPrefixes)
-			return nil, fmt.Errorf("change of zone is prohibited while keeping addresses from another zone")
+		}
+		servicelog.Info("Validate Update: Change of zone is prohibited while requesting keeping old addresses", "service", newService.GetName())
+		return nil, fmt.Errorf("change of zone is prohibited while keeping old addresses")
+	}
+
+	// Validate newPrefixes
+	for _, addr := range newPrefixes {
+		servicelog.Info("Validate Update: Validating new IP-address:", "name", newService.GetName(), "ip", addr)
+		if _, err := UpdateAddressIpamAPI(addr, newAnnotations, newService, newSecret, clusterId, namespaceId); err != nil {
+			servicelog.Info("Validate Update: Validate IP-address failed!", "name", newService.GetName(), "ip", addr, "error", err)
+			if err := RemoveAddressIpamAPI(newPrefixes[0], newAnnotations, newService, newSecret, clusterId, namespaceId); err != nil {
+				servicelog.Info("Validate Update: Failed to remove (best effort) newly requested address after zone change detected", "service", newService.GetName(), "ip", newPrefixes[0], "Error", err)
+			}
+			return nil, err
 		}
 	}
 
-	// Request new addresses
-	var newPrefixesSucceeded []string
-	if len(newPrefixes) > 0 {
-		servicelog.Info("Validate new ip-addresses for Service:", "name", newService.GetName(), "Addresses", newPrefixes)
-		newPrefixesSucceeded, err = utils.RequestMultiplePrefixes(v.Client, newService, newPrefixes)
-		if err != nil {
-			if len(newPrefixesSucceeded) == 0 {
-				servicelog.Info("Validate failed for new requests:", "name", newService.GetName(), "Error", err)
-			} else {
-				servicelog.Info("Validate failed, delete succedeed requests:", "name", newService.GetName(), "Error", err)
-				_, err := utils.DeleteMultiplePrefixes(v.Client, newService, newPrefixesSucceeded)
-				if err != nil {
-					servicelog.Info("Failed to delete succedeed requests:", "name", newService.GetName(), "Error", err)
-				}
-			}
-			return nil, fmt.Errorf("failed to request new ip-addresses during validate update: %v", err)
-		}
+	// Update Secret for prefixes to keep
+	if err := UpdateSecret(keepPrefixes, oldAnnotations, newAnnotations, oldService, newService, oldSecret, newSecret, clusterId, namespaceId); err != nil {
+		return nil, err
 	}
 
-	// Update Secret for addresses to keep
-	var keepPrefixesSucceeded []string
-	if len(keepPrefixes) > 0 {
-		servicelog.Info("Update addresses to keep:", "name", newService.GetName(), "Addresses", keepPrefixes)
-		keepPrefixesSucceeded, err = utils.UpdateMultiplePrefixes(v.Client, oldService, newService, keepPrefixes)
-		if err != nil {
-			if len(keepPrefixesSucceeded) == 0 {
-				servicelog.Info("Update failed for addresses to keep:", "name", newService.GetName(), "Error", err)
-				if _, err := utils.DeleteMultiplePrefixes(v.Client, newService, newPrefixesSucceeded); err != nil {
-					servicelog.Info("Remove allocated ip-addresses failed:", "service", newService.GetName(), "Prefixes:", newPrefixesSucceeded, "Error", err)
-				}
-			} else {
-				servicelog.Info("Delete requested new addresses:", "name", newService.GetName(), "Addresses", newPrefixesSucceeded)
-				if _, err := utils.DeleteMultiplePrefixes(v.Client, newService, newPrefixesSucceeded); err != nil {
-					servicelog.Info("Remove allocated ip-addresses failed:", "service", newService.GetName(), "Prefixes:", newPrefixesSucceeded, "Error", err)
-				}
-				servicelog.Info("Update failed, revert succeeded updates to keep:", "name", newService.GetName(), "Error", err)
-				_, err := utils.UpdateMultiplePrefixes(v.Client, newService, oldService, keepPrefixesSucceeded)
-				if err != nil {
-					servicelog.Info("Failed to revert succeeded updates for addresses to keep:", "name", newService.GetName(), "Error", err)
-				}
-			}
-			return nil, fmt.Errorf("failed to update existing addresses during validate update: %v", err)
-		}
-	}
-
-	// Remove old addresses
-	var removePrefixesSucceeded []string
-	if len(removePrefixes) > 0 && removePrefixes[0] != "" {
-		servicelog.Info("Remove addresses from IPAM-API", "name", newService.GetName(), "Addresses", removePrefixes)
-		removePrefixesSucceeded, err = utils.DeleteMultiplePrefixes(v.Client, oldService, removePrefixes)
-		if err != nil {
-			if len(removePrefixesSucceeded) != 0 {
-				servicelog.Info("Remove addresses failed from IPAM-API:", "name", newService.GetName(), "Error", err)
-				servicelog.Info("Best effort reverting:", "name", newService.GetName(), "Error", err)
-				if _, err := utils.RequestMultiplePrefixes(v.Client, oldService, removePrefixesSucceeded); err != nil {
-					servicelog.Info("Revert of removed addresses failed:", "name", newService.GetName(), "Error", err)
-				}
-				if _, err := utils.DeleteMultiplePrefixes(v.Client, newService, newPrefixesSucceeded); err != nil {
-					servicelog.Info("Remove allocated ip-addresses failed:", "service", newService.GetName(), "Prefixes:", newPrefixesSucceeded, "Error", err)
-				}
-				if _, err := utils.UpdateMultiplePrefixes(v.Client, newService, oldService, keepPrefixesSucceeded); err != nil {
-					servicelog.Info("Failed to revert succeeded updates for addresses to keep:", "name", newService.GetName(), "Error", err)
-				}
-			}
-			return nil, fmt.Errorf("failed to remove addresses during validate update: %v", err)
+	// Remove old addresses that are not needed anymore
+	for _, addr := range removePrefixes {
+		servicelog.Info("Validate Update: Remove old ip-address", "service", newService.GetName(), "ip", addr)
+		if err := RemoveAddressIpamAPI(addr, oldAnnotations, oldService, oldSecret, clusterId, namespaceId); err != nil {
+			servicelog.Info("Validate Update: Failed to remove old ip-address", "service", newService.GetName(), "ip", addr, "Error", err)
 		}
 	}
 
 	// Update Metallb AddressPool
 	if len(newPrefixes) > 0 {
+		servicelog.Info("Validate Update: Add prefixes to Metallb Addresspool", "name", newService.GetName(), "pool", oldAnnotations["ipam.vitistack.io/zone"])
 		if err := utils.AddIpAddressesToPool(v.Client, newAnnotations, newPrefixes); err != nil {
-			servicelog.Info("Unable to add new IP-addresses to pool", "name", newService.GetName(), "pool", newAnnotations["ipam.vitistack.io/zone"], "Error", err)
-		}
-	}
-	if len(keepPrefixes) > 0 {
-		if err := utils.AddIpAddressesToPool(v.Client, newAnnotations, keepPrefixes); err != nil {
-			servicelog.Info("Unable to add existing IP-addresses to pool", "name", newService.GetName(), "pool", newAnnotations["ipam.vitistack.io/zone"], "Error", err)
+			servicelog.Info("Validate Update: Unable to add new IP-addresses to pool", "name", newService.GetName(), "pool", newAnnotations["ipam.vitistack.io/zone"], "Error", err)
 		}
 	}
 	if len(removePrefixes) > 0 {
+		servicelog.Info("Validate Update: Remove out-dated prefixes from Metallb Addresspool", "name", newService.GetName(), "pool", oldAnnotations["ipam.vitistack.io/zone"])
 		if err := utils.RemoveIPAddressesFromPool(v.Client, oldAnnotations, removePrefixes); err != nil {
-			servicelog.Info("Unable to remove old IP-addresses from pool", "name", newService.GetName(), "pool", oldAnnotations["ipam.vitistack.io/zone"], "Error", err)
+			servicelog.Info("Validate Update: Unable to remove old IP-addresses from pool", "name", newService.GetName(), "pool", oldAnnotations["ipam.vitistack.io/zone"], "Error", err)
 		}
 	}
 
-	servicelog.Info("Validation for Service upon update completed:", "name", newService.GetName())
+	servicelog.Info("Validate Update: Completed:", "name", newService.GetName())
 
 	return nil, nil
 }
@@ -519,7 +453,7 @@ func (v *ServiceCustomValidator) ValidateDelete(ctx context.Context, obj runtime
 	// Do not Validate if the service type is not LoadBalancer.
 
 	if service.Spec.Type != LoadBalancer {
-		servicelog.Info("Not Mutating Service due to wrong .spec.type", "name", service.GetName(), "type", service.Spec.Type)
+		servicelog.Info("Validate Delete: wrong .spec.type, ABORT further actions", "name", service.GetName(), "type", service.Spec.Type)
 		return nil, nil
 	}
 
