@@ -8,7 +8,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-func ReconcileAnnotationAddresses(annotations map[string]string, service *corev1.Service) error {
+func reconcileAnnotationAddresses(annotations map[string]string, service *corev1.Service) error {
 
 	// Validate if addresses is valid IPs
 	if annotations["ipam.vitistack.io/addresses"] != "" {

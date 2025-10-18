@@ -9,7 +9,7 @@ import (
 )
 
 // ValidateMetallbOperator checks if the Metallb controller is running
-func ValidateMetallbOperator(ctx context.Context, c client.Client) error {
+func validateMetallbOperator(ctx context.Context, c client.Client) error {
 	var podList corev1.PodList
 	podSelector := client.MatchingLabels{"app": "metallb", "component": "controller"}
 

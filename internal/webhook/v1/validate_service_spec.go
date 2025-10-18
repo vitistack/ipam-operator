@@ -9,7 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func ValidateServiceSpec(ctx context.Context, c client.Client, service *corev1.Service, operation string) error {
+func validateServiceSpec(ctx context.Context, c client.Client, service *corev1.Service, operation string) error {
 
 	// Validate the Service using dry-run to ensure it can be created/updated successfully
 

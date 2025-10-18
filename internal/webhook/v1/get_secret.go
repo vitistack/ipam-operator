@@ -8,7 +8,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func GetSecret(annotations map[string]string, service *corev1.Service, c client.Client) (*corev1.Secret, error) {
+func getSecret(annotations map[string]string, service *corev1.Service, c client.Client) (*corev1.Secret, error) {
 	var secret *corev1.Secret
 	var err error
 

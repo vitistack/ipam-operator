@@ -10,7 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-func RemoveAddressIpamAPI(ipAddress string, annotations map[string]string, service *corev1.Service, secret *corev1.Secret, clusterId string, namespaceId string) error {
+func removeAddressIpamAPI(ipAddress string, annotations map[string]string, service *corev1.Service, secret *corev1.Secret, clusterId string, namespaceId string) error {
 
 	// Convert retentionPeriodDays from string to int
 	retentionPeriodDays := annotations["ipam.vitistack.io/retention-period-days"]
