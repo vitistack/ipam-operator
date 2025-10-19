@@ -10,20 +10,20 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-func updateAddressIpamAPI(ipAddress string, annotations map[string]string, service *corev1.Service, secret *corev1.Secret, clusterId string, namespaceId string) (apicontracts.IpamApiResponse, error) {
+func updateAddressIpamAPI(ipAddress string, annotations map[string]string, service *corev1.Service, secret *corev1.Secret, clusterId string, namespaceId string) error {
 
 	// Convert retentionPeriodDays from string to int
 	retentionPeriodDays := annotations["ipam.vitistack.io/retention-period-days"]
 	retentionPeriodDaysToInt, err := strconv.Atoi(retentionPeriodDays)
 	if err != nil {
-		return apicontracts.IpamApiResponse{}, fmt.Errorf("not able to convert byte retentionPeriodDays to Integer")
+		return fmt.Errorf("not able to convert byte retentionPeriodDays to Integer")
 	}
 
 	// Convert denyExternalCleanup from string to bool
 	denyExternalCleanup := annotations["ipam.vitistack.io/deny-external-cleanup"]
 	denyExternalCleanupToBool, err := strconv.ParseBool(denyExternalCleanup)
 	if err != nil {
-		return apicontracts.IpamApiResponse{}, fmt.Errorf("not able to convert string denyExternalCleanup to Bool for Service %s", service.GetName())
+		return fmt.Errorf("not able to convert string denyExternalCleanup to Bool for Service %s", service.GetName())
 	}
 
 	// Determine IP Family
@@ -33,7 +33,7 @@ func updateAddressIpamAPI(ipAddress string, annotations map[string]string, servi
 	} else if utils.IsIPv6(ipAddress) {
 		ipFamily = IPv6Family
 	} else {
-		return apicontracts.IpamApiResponse{}, fmt.Errorf("invalid IP address format for Service %s", service.GetName())
+		return fmt.Errorf("invalid IP address format for Service %s", service.GetName())
 	}
 
 	// Create validate object for IPAM API
@@ -52,11 +52,10 @@ func updateAddressIpamAPI(ipAddress string, annotations map[string]string, servi
 	}
 
 	// Validate IP from IPAM API
-	var responseAddrObject apicontracts.IpamApiResponse
-	responseAddrObject, err = utils.RequestIP(requestAddrObject)
+	_, err = utils.RequestIP(requestAddrObject)
 	if err != nil {
-		return apicontracts.IpamApiResponse{}, fmt.Errorf("failed to validate IP for address-family %s for Service %s: %w", ipFamily, service.GetName(), err)
+		return fmt.Errorf("failed to validate IP for address-family %s for Service %s: %w", ipFamily, service.GetName(), err)
 	}
 
-	return responseAddrObject, nil
+	return nil
 }

@@ -15,10 +15,10 @@ func updateSecret(keepPrefixes []string, oldAnnotations map[string]string, annot
 	if (oldAnnotations["ipam.vitistack.io/secret"] != annotations["ipam.vitistack.io/secret"]) && len(keepPrefixes) > 0 {
 		for index, addr := range keepPrefixes {
 			servicelog.Info("Validate Update: Change secret for IP-address", "name", service.GetName(), "ip", addr)
-			if _, err := updateSecretIpamAPI(addr, annotations, service, oldSecret, newSecret, clusterId, namespaceId); err != nil {
+			if err := updateSecretIpamAPI(addr, annotations, service, oldSecret, newSecret, clusterId, namespaceId); err != nil {
 				servicelog.Info("Validate Update: Change secret for IP-address failed!", "name", service.GetName(), "ip", addr, "error", err)
 				if index == 1 {
-					if _, err := updateSecretIpamAPI(keepPrefixes[0], oldAnnotations, service, newSecret, oldSecret, clusterId, namespaceId); err != nil {
+					if err := updateSecretIpamAPI(keepPrefixes[0], oldAnnotations, service, newSecret, oldSecret, clusterId, namespaceId); err != nil {
 						servicelog.Info("Validate Update: Failed to revert (best effort) first address after second address secret update failure", "service", service.GetName(), "ip", keepPrefixes[0], "Error", err)
 						return err
 					}
@@ -31,20 +31,20 @@ func updateSecret(keepPrefixes []string, oldAnnotations map[string]string, annot
 	return nil
 }
 
-func updateSecretIpamAPI(ipAddress string, annotations map[string]string, service *corev1.Service, oldSecret *corev1.Secret, newSecret *corev1.Secret, clusterId string, namespaceId string) (apicontracts.IpamApiResponse, error) {
+func updateSecretIpamAPI(ipAddress string, annotations map[string]string, service *corev1.Service, oldSecret *corev1.Secret, newSecret *corev1.Secret, clusterId string, namespaceId string) error {
 
 	// Convert retentionPeriodDays from string to int
 	retentionPeriodDays := annotations["ipam.vitistack.io/retention-period-days"]
 	retentionPeriodDaysToInt, err := strconv.Atoi(retentionPeriodDays)
 	if err != nil {
-		return apicontracts.IpamApiResponse{}, fmt.Errorf("not able to convert byte retentionPeriodDays to Integer")
+		return fmt.Errorf("not able to convert byte retentionPeriodDays to Integer")
 	}
 
 	// Convert denyExternalCleanup from string to bool
 	denyExternalCleanup := annotations["ipam.vitistack.io/deny-external-cleanup"]
 	denyExternalCleanupToBool, err := strconv.ParseBool(denyExternalCleanup)
 	if err != nil {
-		return apicontracts.IpamApiResponse{}, fmt.Errorf("not able to convert string denyExternalCleanup to Bool for Service %s", service.GetName())
+		return fmt.Errorf("not able to convert string denyExternalCleanup to Bool for Service %s", service.GetName())
 	}
 
 	// Determine IP Family
@@ -54,7 +54,7 @@ func updateSecretIpamAPI(ipAddress string, annotations map[string]string, servic
 	} else if utils.IsIPv6(ipAddress) {
 		ipFamily = IPv6Family
 	} else {
-		return apicontracts.IpamApiResponse{}, fmt.Errorf("invalid IP address format for Service %s", service.GetName())
+		return fmt.Errorf("invalid IP address format for Service %s", service.GetName())
 	}
 
 	// Create validate object for IPAM API
@@ -74,11 +74,10 @@ func updateSecretIpamAPI(ipAddress string, annotations map[string]string, servic
 	}
 
 	// Validate IP from IPAM API
-	var responseAddrObject apicontracts.IpamApiResponse
-	responseAddrObject, err = utils.RequestIP(requestAddrObject)
+	_, err = utils.RequestIP(requestAddrObject)
 	if err != nil {
-		return apicontracts.IpamApiResponse{}, fmt.Errorf("failed to update secret for address-family %s for Service %s: %w", ipFamily, service.GetName(), err)
+		return fmt.Errorf("failed to update secret for address-family %s for Service %s: %w", ipFamily, service.GetName(), err)
 	}
 
-	return responseAddrObject, nil
+	return nil
 }

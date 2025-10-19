@@ -272,7 +272,7 @@ func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime
 
 	for _, addr := range addrSlice {
 		servicelog.Info("Validate Create: Validating IP-address:", "name", service.GetName(), "ip", addr)
-		if _, err := updateAddressIpamAPI(addr, annotations, service, secret, clusterId, namespaceId); err != nil {
+		if err := updateAddressIpamAPI(addr, annotations, service, secret, clusterId, namespaceId); err != nil {
 			servicelog.Info("Validate Create: IP-address failed!", "name", service.GetName(), "ip", addr, "error", err)
 			validateFailed = true
 			break
@@ -399,7 +399,7 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 	// Validate newPrefixes
 	for _, addr := range newPrefixes {
 		servicelog.Info("Validate Update: Validating new IP-address:", "name", newService.GetName(), "ip", addr)
-		if _, err := updateAddressIpamAPI(addr, newAnnotations, newService, newSecret, clusterId, namespaceId); err != nil {
+		if err := updateAddressIpamAPI(addr, newAnnotations, newService, newSecret, clusterId, namespaceId); err != nil {
 			servicelog.Info("Validate Update: Validate IP-address failed!", "name", newService.GetName(), "ip", addr, "error", err)
 			if err := removeAddressIpamAPI(newPrefixes[0], newAnnotations, newService, newSecret, clusterId, namespaceId); err != nil {
 				servicelog.Info("Validate Update: Failed to remove (best effort) newly requested address after zone change detected", "service", newService.GetName(), "ip", newPrefixes[0], "Error", err)
