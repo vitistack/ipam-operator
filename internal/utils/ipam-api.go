@@ -186,7 +186,7 @@ func RequestMultiplePrefixes(v client.Client, service *corev1.Service, prefixes 
 
 	// Get Secret
 	var secret *corev1.Secret
-	if annotations["ipam.vitistack.io/secret"] == "default" {
+	if annotations["ipam.vitistack.io/secret"] == DefaultSecretName {
 		secret, err = GetDefaultSecret(v)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get default secret: %v", err)
@@ -278,7 +278,7 @@ func DeleteMultiplePrefixes(v client.Client, service *corev1.Service, prefixes [
 
 	// Get Secret
 	var secret *corev1.Secret
-	if annotations["ipam.vitistack.io/secret"] == "default" {
+	if annotations["ipam.vitistack.io/secret"] == DefaultSecretName {
 		secret, err = GetDefaultSecret(v)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get default secret: %v", err)
@@ -371,7 +371,7 @@ func UpdateMultiplePrefixes(v client.Client, oldService *corev1.Service, newServ
 
 	// Get Old Secret
 	var oldSecret *corev1.Secret
-	if oldAnnotations["ipam.vitistack.io/secret"] == "default" {
+	if oldAnnotations["ipam.vitistack.io/secret"] == DefaultSecretName {
 		oldSecret, err = GetDefaultSecret(v)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get default secret: %v", err)
@@ -385,7 +385,7 @@ func UpdateMultiplePrefixes(v client.Client, oldService *corev1.Service, newServ
 
 	// Get New Secret
 	var newSecret *corev1.Secret
-	if newAnnotations["ipam.vitistack.io/secret"] == "default" {
+	if newAnnotations["ipam.vitistack.io/secret"] == DefaultSecretName {
 		newSecret, err = GetDefaultSecret(v)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get default secret: %v", err)

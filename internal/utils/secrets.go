@@ -15,7 +15,7 @@ func GetDefaultSecret(d client.Client) (*corev1.Secret, error) {
 	// Check if secret exists in the "ipam" namespace
 	secret := &corev1.Secret{}
 	retrieveSecret := d.Get(context.TODO(), types.NamespacedName{
-		Name:      "default",
+		Name:      DefaultSecretName,
 		Namespace: "ipam-system",
 	}, secret)
 
@@ -28,7 +28,7 @@ func GetDefaultSecret(d client.Client) (*corev1.Secret, error) {
 
 		newSecret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "default",
+				Name:      DefaultSecretName,
 				Namespace: "ipam-system",
 			},
 			Data:      map[string][]byte{"secret": []byte(randomSecret)},

@@ -37,10 +37,11 @@ import (
 )
 
 const (
-	DualFamily   = "dual"
-	IPv4Family   = "ipv4"
-	IPv6Family   = "ipv6"
-	LoadBalancer = "LoadBalancer"
+	DualFamily        = "dual"
+	IPv4Family        = "ipv4"
+	IPv6Family        = "ipv6"
+	LoadBalancer      = "LoadBalancer"
+	DefaultSecretName = "default"
 )
 
 // nolint:unused

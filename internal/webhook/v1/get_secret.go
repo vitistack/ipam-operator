@@ -12,7 +12,7 @@ func getSecret(annotations map[string]string, service *corev1.Service, c client.
 	var secret *corev1.Secret
 	var err error
 
-	if annotations["ipam.vitistack.io/secret"] == "default" {
+	if annotations["ipam.vitistack.io/secret"] == DefaultSecretName {
 		secret, err = utils.GetDefaultSecret(c)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get default secret. Error: %w", err)
