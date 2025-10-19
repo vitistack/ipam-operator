@@ -10,16 +10,16 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-func updateSecret(keepPrefixes []string, oldAnnotations map[string]string, newAnnotations map[string]string, oldService *corev1.Service, newService *corev1.Service, oldSecret *corev1.Secret, newSecret *corev1.Secret, clusterId string, namespaceId string) error {
+func updateSecret(keepPrefixes []string, oldAnnotations map[string]string, annotations map[string]string, service *corev1.Service, oldSecret *corev1.Secret, newSecret *corev1.Secret, clusterId string, namespaceId string) error {
 
-	if (oldAnnotations["ipam.vitistack.io/secret"] != newAnnotations["ipam.vitistack.io/secret"]) && len(keepPrefixes) > 0 {
+	if (oldAnnotations["ipam.vitistack.io/secret"] != annotations["ipam.vitistack.io/secret"]) && len(keepPrefixes) > 0 {
 		for index, addr := range keepPrefixes {
-			servicelog.Info("Validate Update: Change secret for IP-address", "name", newService.GetName(), "ip", addr)
-			if _, err := updateSecretIpamAPI(addr, newAnnotations, newService, oldSecret, newSecret, clusterId, namespaceId); err != nil {
-				servicelog.Info("Validate Update: Change secret for IP-address failed!", "name", newService.GetName(), "ip", addr, "error", err)
+			servicelog.Info("Validate Update: Change secret for IP-address", "name", service.GetName(), "ip", addr)
+			if _, err := updateSecretIpamAPI(addr, annotations, service, oldSecret, newSecret, clusterId, namespaceId); err != nil {
+				servicelog.Info("Validate Update: Change secret for IP-address failed!", "name", service.GetName(), "ip", addr, "error", err)
 				if index == 1 {
-					if _, err := updateSecretIpamAPI(keepPrefixes[0], oldAnnotations, newService, newSecret, oldSecret, clusterId, namespaceId); err != nil {
-						servicelog.Info("Validate Update: Failed to revert (best effort) first address after second address secret update failure", "service", newService.GetName(), "ip", keepPrefixes[0], "Error", err)
+					if _, err := updateSecretIpamAPI(keepPrefixes[0], oldAnnotations, service, newSecret, oldSecret, clusterId, namespaceId); err != nil {
+						servicelog.Info("Validate Update: Failed to revert (best effort) first address after second address secret update failure", "service", service.GetName(), "ip", keepPrefixes[0], "Error", err)
 						return err
 					}
 				}
