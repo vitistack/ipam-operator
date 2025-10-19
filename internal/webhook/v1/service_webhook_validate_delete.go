@@ -43,29 +43,62 @@ func (v *ServiceCustomValidator) ValidateDelete(ctx context.Context, obj runtime
 
 	// Check if Metallb Controller is actually running
 	if err := validateMetallbOperator(ctx, v.Client); err != nil {
-		servicelog.Info("Mutation: Metallb operator is not available. Please make sure Metallb is installed and ready.")
+		servicelog.Info("Validate Delete: Metallb operator is not available. Please make sure Metallb is installed and ready.")
+		return nil, err
+	}
+
+	// Get kube-system namespace uid for cluster identification
+	clusterId, err := getClusterID(v.Client)
+	if err != nil {
+		servicelog.Info("Validate Delete: Failed to get cluster ID")
+		return nil, err
+	}
+
+	// Get namespace uid for Service namespace identification
+	namespaceId, err := getNameSpaceID(v.Client, service)
+	if err != nil {
+		servicelog.Info("Validate Delete: Failed to get namespace ID")
 		return nil, err
 	}
 
 	// Get Service annotations, need "ipam.vitistack.io/zone" to remove IP addresses from correct IPAddressPool
 	annotations := service.GetAnnotations()
 
+	// Get Secret
+	secret, err := getSecret(annotations, service, v.Client)
+	if err != nil {
+		servicelog.Info("Validate Crate: Failed to get secret", "error", err)
+		return nil, err
+	}
+
 	// Add all Service addresses to a slice
 	addresses := strings.Split(annotations["ipam.vitistack.io/addresses"], ",")
 
-	// Delete Service from IPAM-API
-	_, err := utils.DeleteMultiplePrefixes(v.Client, service, addresses)
-	if err != nil {
-		servicelog.Info("Removed addresses from IPAM-API failed", "service", service.GetName(), "error", err)
-		return nil, err
+	// Remove old addresses that are not needed anymore
+	for index, addr := range addresses {
+		servicelog.Info("Validate Delete: Remove ip-address", "service", service.GetName(), "ip", addr)
+		if err := removeAddressIpamAPI(addr, annotations, service, secret, clusterId, namespaceId); err != nil {
+			servicelog.Info("Validate Delete: Failed to remove ip-address", "service", service.GetName(), "ip", addr, "Error", err)
+			if index == 1 {
+				if err := updateAddressIpamAPI(addresses[0], annotations, service, secret, clusterId, namespaceId); err != nil {
+					servicelog.Info("Validate Delete: Failed to rollback ip-address", "service", service.GetName(), "ip", addresses[0], "Error", err)
+					return nil, err
+				}
+			}
+			return nil, err
+		}
 	}
 
 	// Remove Metallb Addresses from IPAddressPool
 	if err := utils.RemoveIPAddressesFromPool(v.Client, annotations, addresses); err != nil {
+		for _, addr := range addresses {
+			if err := updateAddressIpamAPI(addr, annotations, service, secret, clusterId, namespaceId); err != nil {
+				servicelog.Info("Validate Delete: Failed to rollback ip-address", "service", service.GetName(), "ip", addresses[0], "Error", err)
+				return nil, err
+			}
+		}
 		return nil, fmt.Errorf("failed to remove IP addresses from IPAddressPool: %w", err)
 	}
-
-	servicelog.Info("Removed addresses successful:", "name", service.GetName(), "Addresses", addresses)
 
 	servicelog.Info("Validate Delete: Completed:", "name", service.GetName())
 
