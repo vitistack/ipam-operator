@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -87,6 +88,8 @@ func GetIpAddressesToPool(d client.Client, annotations map[string]string) error 
 }
 
 func RemoveIPAddressesFromPool(d client.Client, annotations map[string]string, addresses []string) error {
+
+	time.Sleep(2 * time.Second)
 
 	// Get the IPAddressPool by zone name from annotations
 	ipAddressPool := &metallbv1beta1.IPAddressPool{}

@@ -27,7 +27,7 @@ func SetDefaultIpamAnnotations(annotations map[string]string) map[string]string 
 		annotations["ipam.vitistack.io/retention-period-days"] = "0"
 	}
 	if _, exists := annotations["ipam.vitistack.io/secret"]; !exists {
-		annotations["ipam.vitistack.io/secret"] = "default"
+		annotations["ipam.vitistack.io/secret"] = DefaultSecretName
 	}
 	if _, exists := annotations["ipam.vitistack.io/zone"]; !exists {
 		annotations["ipam.vitistack.io/zone"] = "hnet-private"

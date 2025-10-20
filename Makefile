@@ -123,6 +123,13 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 lint-config: golangci-lint ## Verify golangci-lint linter configuration
 	$(GOLANGCI_LINT) config verify
 
+.PHONY: go-security-scan
+go-security-scan: ## Run security scan
+	@echo "Running security scan..."
+	@command -v gosec >/dev/null 2>&1 || { echo "Installing gosec..."; go install github.com/securego/gosec/v2/cmd/gosec@latest; }
+	@gosec ./...
+	@echo "Security scan complete!"
+
 ##@ Build
 
 .PHONY: build
