@@ -36,8 +36,6 @@ webhooks:
       - rook-ceph
       - falco
       - trivy-system
-      - prometheus-operator
-      - prometheus-blackbox-exporter
       - ipam-system
   rules:
   - apiGroups:
@@ -88,8 +86,6 @@ webhooks:
       - monitoring
       - rook-ceph
       - falco
-      - prometheus-operator
-      - prometheus-blackbox-exporter
       - trivy-system
       - ipam-system
   rules:
