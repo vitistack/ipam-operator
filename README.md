@@ -1,37 +1,39 @@
-# Develop IPAM-Operator locally
+# IPAM-Operator
 
-## Prerequisites
+## Setup
+
+### Prerequisites
 - go version v1.25.3+
 - docker version 4.45.0+.
 - kubectl version v1.34.1+.
 - Access to a Kubernetes v1.34.1+ cluster.
 - Deployed IPAM-API in Docker
 
-## Install Kubernetes Cluster, f.ex Sidero Talos
+### Install Kubernetes Cluster, f.ex Sidero Talos
 
 ```sh
 brew install siderolabs/tap/talosctl
 talosctl cluster create
 ```
 
-## Install & Configure Metallb Operator
+### Install & Configure Metallb Operator
 ```sh
 kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.15.2/config/manifests/metallb-native.yaml
 kubectl apply -f ./hack/metallb.yaml
 ```
 
-## Create required namespace (ipam-system) in Kubernetes Cluster
+### Create required namespace (ipam-system) in Kubernetes Cluster
 ```sh
 kubectl apply -f ./hack/namespace.yaml
 ```
 
-## Create Certificate for IPAM-Operator
+### Create Certificate for IPAM-Operator
 IPAM-Operator checks for certificate in folder /tmp/k8s-webhook-server/serving-certs, when running locally.
 ```sh
 make generate-certs
 ```
 
-## Update local webhook manifest file with encoded certificate and apply manifest to Kubernetes Cluster
+### Update local webhook manifest file with encoded certificate and apply manifest to Kubernetes Cluster
 ```sh
 base64 -i /tmp/k8s-webhook-server/serving-certs/tls.crt
 ```
@@ -42,24 +44,24 @@ Replace `caBundle` (two occurrences) in file ./config/webhook/manifests-local.ya
 kubectl apply -f ./config/webhook/manifests-local.yaml
 ```
 
-## Run Controller locally
+### Run Controller locally
 ```sh
 make run
 ```
 
-# Examples
+## Examples
 
-## Create a service
+### Create a service
 ```sh
 kubectl apply -f ./hack/service.yaml
 ```
 
-## Create a secret
+### Create a secret
 ```sh
 kubectl apply -f ./hack/my-secret.yaml
 ```
 
-# ArgoCD
+## ArgoCD
 
 ```yaml
 apiVersion: argoproj.io/v1alpha1
@@ -90,7 +92,7 @@ spec:
 If you would like to listen to only release candidates of the application, please replace `.spec.source.targetRevision` with f.ex `2.*-0`.
 The notation will support releases with prefix `2.0.1-rc2`.
 
-# License
+## License
 
 Copyright 2025.
 
