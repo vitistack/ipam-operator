@@ -21,8 +21,6 @@
           - rook-ceph
           - falco
           - trivy-system
-          - prometheus-operator
-          - prometheus-blackbox-exporter
           - ipam-system
 - op: replace
   path: /webhooks/0/failurePolicy
