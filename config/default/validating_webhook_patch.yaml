@@ -20,8 +20,6 @@
           - monitoring
           - rook-ceph
           - falco
-          - prometheus-operator
-          - prometheus-blackbox-exporter
           - trivy-system
           - ipam-system
 - op: replace
