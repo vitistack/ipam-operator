@@ -59,7 +59,38 @@ kubectl apply -f ./hack/service.yaml
 kubectl apply -f ./hack/my-secret.yaml
 ```
 
-## License
+# ArgoCD
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ipam-operator
+  namespace: argocd
+spec:
+  project: default
+  source:
+    path: .
+    repoURL: oci://ncr.sky.nhn.no/ghcr/vitistack/helm/ipam-operator
+    targetRevision: 2.*
+    helm:
+      valueFiles:
+          - values.prod.yaml
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: ipam-system
+  syncPolicy:
+      automated:
+          selfHeal: true
+          prune: true
+      syncOptions:
+      - CreateNamespace=true
+```
+
+If you would like to listen to only release candidates of the application, please replace `.spec.source.targetRevision` with f.ex `2.*-0`.
+The notation will support releases with prefix `2.0.1-rc2`.
+
+# License
 
 Copyright 2025.
 
