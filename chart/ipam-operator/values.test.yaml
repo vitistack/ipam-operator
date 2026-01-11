@@ -1,6 +1,6 @@
 global:
  urls:
-   ipamApi: "https://ipam-api.test.vitistack.io"
+   ipamApi: "https://ipam-api.test.vitistack.io/v2"
  controller:
    repository: "ncr.sky.nhn.no/ghcr/vitistack/ipam-operator"
    tag: "0.0.1-rc31"
