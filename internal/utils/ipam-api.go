@@ -50,7 +50,7 @@ func RequestIP(request apicontracts.IpamApiRequest) (apicontracts.IpamApiRespons
 	}
 
 	// Make the HTTP POST request
-	req, err := http.NewRequest("POST", ipamApiUrl, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest("POST", ipamApiUrl+"/address", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return apicontracts.IpamApiResponse{}, fmt.Errorf("fail to create new http request: %v", err)
 	}
@@ -115,7 +115,7 @@ func DeleteIP(request apicontracts.IpamApiRequest) (apicontracts.IpamApiResponse
 	}
 
 	// Make the HTTP POST request
-	req, err := http.NewRequest("DELETE", ipamApiUrl, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest("DELETE", ipamApiUrl+"/service", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return apicontracts.IpamApiResponse{}, err
 	}
