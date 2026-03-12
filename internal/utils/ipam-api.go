@@ -20,39 +20,39 @@ const (
 	IPv4Family = "ipv4"
 )
 
-func RequestIP(request apicontracts.IpamApiRequest) (apicontracts.IpamApiResponse, error) {
+func RequestIP(request apicontracts.IpamAPIRequest) (apicontracts.IpamAPIResponse, error) {
 
 	// Get OS Environment Variable for IPAM API
 	envVar := IPAMApiUrl
 	ipamApiUrl := os.Getenv(envVar)
 	if ipamApiUrl == "" {
-		return apicontracts.IpamApiResponse{}, fmt.Errorf("environment variable for IPAM-API %s was not found", envVar)
+		return apicontracts.IpamAPIResponse{}, fmt.Errorf("environment variable for IPAM-API %s was not found", envVar)
 	}
 
 	// Update request object with prefix and correct ip-family
 	if strings.Contains(request.Address, ".") {
 		if !strings.Contains(request.Address, "/32") {
 			request.Address = request.Address + "/32"
-			request.IpFamily = IPv4Family
+			request.IPFamily = IPv4Family
 		}
 	}
 	if strings.Contains(request.Address, ":") {
 		if !strings.Contains(request.Address, "/128") {
 			request.Address = request.Address + "/128"
-			request.IpFamily = IPv6Family
+			request.IPFamily = IPv6Family
 		}
 	}
 
 	// Marshal the struct to JSON
 	jsonData, err := json.Marshal(request)
 	if err != nil {
-		return apicontracts.IpamApiResponse{}, fmt.Errorf("fail to struct request to Json: %v", err)
+		return apicontracts.IpamAPIResponse{}, fmt.Errorf("fail to struct request to Json: %v", err)
 	}
 
 	// Make the HTTP POST request
 	req, err := http.NewRequest("POST", ipamApiUrl+"/address", bytes.NewBuffer(jsonData))
 	if err != nil {
-		return apicontracts.IpamApiResponse{}, fmt.Errorf("fail to create new http request: %v", err)
+		return apicontracts.IpamAPIResponse{}, fmt.Errorf("fail to create new http request: %v", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -61,7 +61,7 @@ func RequestIP(request apicontracts.IpamApiRequest) (apicontracts.IpamApiRespons
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return apicontracts.IpamApiResponse{}, fmt.Errorf("fail to send request to: %v , error: %v", ipamApiUrl, err)
+		return apicontracts.IpamAPIResponse{}, fmt.Errorf("fail to send request to: %v , error: %v", ipamApiUrl, err)
 	}
 
 	defer func() {
@@ -71,10 +71,10 @@ func RequestIP(request apicontracts.IpamApiRequest) (apicontracts.IpamApiRespons
 	}()
 
 	// Decode the response (optional)
-	var responseData apicontracts.IpamApiResponse
+	var responseData apicontracts.IpamAPIResponse
 	err = json.NewDecoder(resp.Body).Decode(&responseData)
 	if err != nil {
-		return apicontracts.IpamApiResponse{}, fmt.Errorf("fail to decode response %v", err)
+		return apicontracts.IpamAPIResponse{}, fmt.Errorf("fail to decode response %v", err)
 	}
 
 	if resp.StatusCode != 200 && resp.StatusCode != 201 {
@@ -85,39 +85,39 @@ func RequestIP(request apicontracts.IpamApiRequest) (apicontracts.IpamApiRespons
 
 }
 
-func DeleteIP(request apicontracts.IpamApiRequest) (apicontracts.IpamApiResponse, error) {
+func DeleteIP(request apicontracts.IpamAPIRequest) (apicontracts.IpamAPIResponse, error) {
 
 	// Get OS Environment Variable for IPAM API
 	envVar := IPAMApiUrl
 	ipamApiUrl := os.Getenv(envVar)
 	if ipamApiUrl == "" {
-		return apicontracts.IpamApiResponse{}, fmt.Errorf("environment variable %s was not found", envVar)
+		return apicontracts.IpamAPIResponse{}, fmt.Errorf("environment variable %s was not found", envVar)
 	}
 
 	// Update request object with prefix and ip-family if missing
 	if strings.Contains(request.Address, ".") {
 		if !strings.Contains(request.Address, "/32") {
 			request.Address = request.Address + "/32"
-			request.IpFamily = IPv4Family
+			request.IPFamily = IPv4Family
 		}
 	}
 	if strings.Contains(request.Address, ":") {
 		if !strings.Contains(request.Address, "/128") {
 			request.Address = request.Address + "/128"
-			request.IpFamily = IPv6Family
+			request.IPFamily = IPv6Family
 		}
 	}
 
 	// Marshal the struct to JSON
 	jsonData, err := json.Marshal(request)
 	if err != nil {
-		return apicontracts.IpamApiResponse{}, err
+		return apicontracts.IpamAPIResponse{}, err
 	}
 
 	// Make the HTTP POST request
 	req, err := http.NewRequest("DELETE", ipamApiUrl+"/service", bytes.NewBuffer(jsonData))
 	if err != nil {
-		return apicontracts.IpamApiResponse{}, err
+		return apicontracts.IpamAPIResponse{}, err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -126,7 +126,7 @@ func DeleteIP(request apicontracts.IpamApiRequest) (apicontracts.IpamApiResponse
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return apicontracts.IpamApiResponse{}, err
+		return apicontracts.IpamAPIResponse{}, err
 	}
 
 	defer func() {
@@ -136,10 +136,10 @@ func DeleteIP(request apicontracts.IpamApiRequest) (apicontracts.IpamApiResponse
 	}()
 
 	// Decode the response (optional)
-	var responseData apicontracts.IpamApiResponse
+	var responseData apicontracts.IpamAPIResponse
 	err = json.NewDecoder(resp.Body).Decode(&responseData)
 	if err != nil {
-		return apicontracts.IpamApiResponse{}, err
+		return apicontracts.IpamAPIResponse{}, err
 	}
 
 	if resp.StatusCode != 200 && resp.StatusCode != 201 {

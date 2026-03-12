@@ -46,6 +46,8 @@ kubectl apply -f ./config/webhook/manifests-local.yaml
 
 ### Run Controller locally
 ```sh
+export KUBEBUILDER=local
+export IPAM_API_URL=https://ipam-api.vitistack.io/v2
 make run
 ```
 

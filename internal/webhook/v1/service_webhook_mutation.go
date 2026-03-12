@@ -18,11 +18,9 @@ package v1
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	utils "github.com/vitistack/ipam-operator/internal/utils"
@@ -31,14 +29,9 @@ import (
 )
 
 // Default implements webhook.CustomDefaulter so a webhook will be registered for the Kind Service.
-func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object) error {
+func (d *serviceDefaulterAdapter) Default(ctx context.Context, obj *corev1.Service) error {
 
-	// Check if the object is of type Service
-	service, ok := obj.(*corev1.Service)
-
-	if !ok {
-		return fmt.Errorf("mutation: expected an Service object but got %T", obj)
-	}
+	service := obj
 
 	// Get the admission request from the context!
 	req, _ := admission.RequestFromContext(ctx)
@@ -63,26 +56,26 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 
 	// DryRun the object to check if it pass dry run validation.
 	servicelog.Info("Mutation: Dry run .spec Started:", "name", service.GetName())
-	if err := validateServiceSpec(ctx, d.Client, service, string(req.Operation)); err != nil {
+	if err := validateServiceSpec(ctx, d.defaulter.Client, service, string(req.Operation)); err != nil {
 		servicelog.Info("Mutation: Dry run .spec Failed:", "name", service.GetName(), "error", err)
 		return err
 	}
 
 	// Check if Metallb Controller is actually running
-	if err := validateMetallbOperator(ctx, d.Client); err != nil {
+	if err := validateMetallbOperator(ctx, d.defaulter.Client); err != nil {
 		servicelog.Info("Mutation: Metallb operator is not available. Please make sure Metallb is installed and ready.")
 		return err
 	}
 
 	// Get kube-system namespace uid for cluster identification
-	clusterId, err := getClusterID(d.Client)
+	clusterId, err := getClusterID(d.defaulter.Client)
 	if err != nil {
 		servicelog.Info("Mutation: Failed to get cluster ID")
 		return err
 	}
 
 	// Get namespace uid for Service namespace identification
-	namespaceId, err := getNameSpaceID(d.Client, service)
+	namespaceId, err := getNameSpaceID(d.defaulter.Client, service)
 	if err != nil {
 		servicelog.Info("Mutation: Failed to get namespace ID")
 		return err
@@ -112,7 +105,7 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 	}
 
 	// Get Secret
-	secret, err := getSecret(annotations, service, d.Client)
+	secret, err := getSecret(annotations, service, d.defaulter.Client)
 	if err != nil {
 		servicelog.Info("Mutation: Failed to get secret", "error", err)
 		return err
@@ -120,7 +113,7 @@ func (d *ServiceCustomDefaulter) Default(ctx context.Context, obj runtime.Object
 
 	// Request Addresses from IPAM API
 	ipFamily := annotations["ipam.vitistack.io/ip-family"]
-	var retrievedIPv4Address, retrievedIPv6Address apicontracts.IpamApiResponse
+	var retrievedIPv4Address, retrievedIPv6Address apicontracts.IpamAPIResponse
 
 	if !strings.Contains(annotations["ipam.vitistack.io/addresses"], ".") && (ipFamily == IPv4Family || ipFamily == DualFamily) {
 		retrievedIPv4Address, err = getAddressIpamAPI(IPv4Family, annotations, service, secret, clusterId, namespaceId)
