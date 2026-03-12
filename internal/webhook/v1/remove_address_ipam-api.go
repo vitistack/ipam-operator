@@ -37,15 +37,15 @@ func removeAddressIpamAPI(ipAddress string, annotations map[string]string, servi
 	}
 
 	// Create remove object for IPAM API
-	requestAddrObject := apicontracts.IpamApiRequest{
+	requestAddrObject := apicontracts.IpamAPIRequest{
 		Secret:   string(secret.Data["secret"]),
 		Zone:     annotations["ipam.vitistack.io/zone"],
-		IpFamily: ipFamily,
+		IPFamily: ipFamily,
 		Address:  ipAddress,
 		Service: apicontracts.Service{
 			ServiceName:         service.GetName(),
-			NamespaceId:         namespaceId,
-			ClusterId:           clusterId,
+			NamespaceID:         namespaceId,
+			ClusterID:           clusterId,
 			RetentionPeriodDays: retentionPeriodDaysToInt,
 			DenyExternalCleanup: denyExternalCleanupToBool,
 		},

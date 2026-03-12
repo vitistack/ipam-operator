@@ -58,16 +58,16 @@ func updateSecretIpamAPI(ipAddress string, annotations map[string]string, servic
 	}
 
 	// Create validate object for IPAM API
-	requestAddrObject := apicontracts.IpamApiRequest{
+	requestAddrObject := apicontracts.IpamAPIRequest{
 		Secret:    string(oldSecret.Data["secret"]),
 		NewSecret: string(newSecret.Data["secret"]),
 		Zone:      annotations["ipam.vitistack.io/zone"],
-		IpFamily:  ipFamily,
+		IPFamily:  ipFamily,
 		Address:   ipAddress,
 		Service: apicontracts.Service{
 			ServiceName:         service.GetName(),
-			NamespaceId:         namespaceId,
-			ClusterId:           clusterId,
+			NamespaceID:         namespaceId,
+			ClusterID:           clusterId,
 			RetentionPeriodDays: retentionPeriodDaysToInt,
 			DenyExternalCleanup: denyExternalCleanupToBool,
 		},

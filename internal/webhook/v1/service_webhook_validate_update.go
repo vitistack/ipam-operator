@@ -22,7 +22,6 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"reflect"
@@ -31,16 +30,10 @@ import (
 )
 
 // ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type Service.
-func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
-	newService, ok := newObj.(*corev1.Service)
-	if !ok {
-		return nil, fmt.Errorf("expected a Service object for the newObj but got %T", newObj)
-	}
+func (v *serviceValidatorAdapter) ValidateUpdate(ctx context.Context, oldObj, newObj *corev1.Service) (admission.Warnings, error) {
+	newService := newObj
 
-	oldService, ok := oldObj.(*corev1.Service)
-	if !ok {
-		return nil, fmt.Errorf("expected a Service object for the oldObj but got %T", oldObj)
-	}
+	oldService := oldObj
 
 	// Get the admission request from the context!
 	req, _ := admission.RequestFromContext(ctx)
@@ -71,14 +64,14 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 	}
 
 	// Get kube-system namespace uid for cluster identification
-	clusterId, err := getClusterID(v.Client)
+	clusterId, err := getClusterID(v.validator.Client)
 	if err != nil {
 		servicelog.Info("Validate Update: Failed to get cluster ID")
 		return nil, err
 	}
 
 	// Get namespace uid for Service namespace identification
-	namespaceId, err := getNameSpaceID(v.Client, oldService)
+	namespaceId, err := getNameSpaceID(v.validator.Client, oldService)
 	if err != nil {
 		servicelog.Info("Validate Update: Failed to get namespace ID")
 		return nil, err
@@ -104,13 +97,13 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 
 	// Get Secrets
 
-	oldSecret, err := getSecret(oldAnnotations, oldService, v.Client)
+	oldSecret, err := getSecret(oldAnnotations, oldService, v.validator.Client)
 	if err != nil {
 		servicelog.Info("Validate Update: Failed to get old secret", "error", err)
 		return nil, err
 	}
 
-	newSecret, err := getSecret(newAnnotations, newService, v.Client)
+	newSecret, err := getSecret(newAnnotations, newService, v.validator.Client)
 	if err != nil {
 		servicelog.Info("Validate Update: Failed to get new secret", "error", err)
 		return nil, err
@@ -160,13 +153,13 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 	// Update Metallb AddressPool
 	if len(newPrefixes) > 0 {
 		servicelog.Info("Validate Update: Add prefixes to Metallb Addresspool", "name", newService.GetName(), "pool", oldAnnotations["ipam.vitistack.io/zone"])
-		if err := utils.AddIpAddressesToPool(v.Client, newAnnotations, newPrefixes); err != nil {
+		if err := utils.AddIpAddressesToPool(v.validator.Client, newAnnotations, newPrefixes); err != nil {
 			servicelog.Info("Validate Update: Unable to add new IP-addresses to pool", "name", newService.GetName(), "pool", newAnnotations["ipam.vitistack.io/zone"], "Error", err)
 		}
 	}
 	if len(removePrefixes) > 0 {
 		servicelog.Info("Validate Update: Remove out-dated prefixes from Metallb Addresspool", "name", newService.GetName(), "pool", oldAnnotations["ipam.vitistack.io/zone"])
-		if err := utils.RemoveIPAddressesFromPool(v.Client, oldAnnotations, removePrefixes); err != nil {
+		if err := utils.RemoveIPAddressesFromPool(v.validator.Client, oldAnnotations, removePrefixes); err != nil {
 			servicelog.Info("Validate Update: Unable to remove old IP-addresses from pool", "name", newService.GetName(), "pool", oldAnnotations["ipam.vitistack.io/zone"], "Error", err)
 		}
 	}

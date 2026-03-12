@@ -22,18 +22,14 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	utils "github.com/vitistack/ipam-operator/internal/utils"
 )
 
 // ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type Service.
-func (v *ServiceCustomValidator) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	service, ok := obj.(*corev1.Service)
-	if !ok {
-		return nil, fmt.Errorf("expected a Service object but got %T", obj)
-	}
+func (v *serviceValidatorAdapter) ValidateDelete(ctx context.Context, obj *corev1.Service) (admission.Warnings, error) {
+	service := obj
 
 	// Do not Validate if the service type is not LoadBalancer.
 	if service.Spec.Type != LoadBalancer {
@@ -42,20 +38,20 @@ func (v *ServiceCustomValidator) ValidateDelete(ctx context.Context, obj runtime
 	}
 
 	// Check if Metallb Controller is actually running
-	if err := validateMetallbOperator(ctx, v.Client); err != nil {
+	if err := validateMetallbOperator(ctx, v.validator.Client); err != nil {
 		servicelog.Info("Validate Delete: Metallb operator is not available. Please make sure Metallb is installed and ready.")
 		return nil, err
 	}
 
 	// Get kube-system namespace uid for cluster identification
-	clusterId, err := getClusterID(v.Client)
+	clusterId, err := getClusterID(v.validator.Client)
 	if err != nil {
 		servicelog.Info("Validate Delete: Failed to get cluster ID")
 		return nil, err
 	}
 
 	// Get namespace uid for Service namespace identification
-	namespaceId, err := getNameSpaceID(v.Client, service)
+	namespaceId, err := getNameSpaceID(v.validator.Client, service)
 	if err != nil {
 		servicelog.Info("Validate Delete: Failed to get namespace ID")
 		return nil, err
@@ -65,7 +61,7 @@ func (v *ServiceCustomValidator) ValidateDelete(ctx context.Context, obj runtime
 	annotations := service.GetAnnotations()
 
 	// Get Secret
-	secret, err := getSecret(annotations, service, v.Client)
+	secret, err := getSecret(annotations, service, v.validator.Client)
 	if err != nil {
 		servicelog.Info("Validate Crate: Failed to get secret", "error", err)
 		return nil, err
@@ -90,7 +86,7 @@ func (v *ServiceCustomValidator) ValidateDelete(ctx context.Context, obj runtime
 	}
 
 	// Remove Metallb Addresses from IPAddressPool
-	if err := utils.RemoveIPAddressesFromPool(v.Client, annotations, addresses); err != nil {
+	if err := utils.RemoveIPAddressesFromPool(v.validator.Client, annotations, addresses); err != nil {
 		for _, addr := range addresses {
 			if err := updateAddressIpamAPI(addr, annotations, service, secret, clusterId, namespaceId); err != nil {
 				servicelog.Info("Validate Delete: Failed to rollback ip-address", "service", service.GetName(), "ip", addresses[0], "Error", err)

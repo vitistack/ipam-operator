@@ -22,22 +22,18 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	utils "github.com/vitistack/ipam-operator/internal/utils"
 )
 
 // ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type Service.
-func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+func (v *serviceValidatorAdapter) ValidateCreate(ctx context.Context, obj *corev1.Service) (admission.Warnings, error) {
 
 	// Initialize Error Object
 	var err error
 
-	service, ok := obj.(*corev1.Service)
-	if !ok {
-		return nil, fmt.Errorf("expected a Service object but got %T", obj)
-	}
+	service := obj
 
 	// Get the admission request from the context!
 	req, _ := admission.RequestFromContext(ctx)
@@ -57,14 +53,14 @@ func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime
 	}
 
 	// Get kube-system namespace uid for cluster identification
-	clusterId, err := getClusterID(v.Client)
+	clusterId, err := getClusterID(v.validator.Client)
 	if err != nil {
 		servicelog.Info("Validate Create: Failed to get cluster ID")
 		return nil, err
 	}
 
 	// Get namespace uid for Service namespace identification
-	namespaceId, err := getNameSpaceID(v.Client, service)
+	namespaceId, err := getNameSpaceID(v.validator.Client, service)
 	if err != nil {
 		servicelog.Info("Validate Create: Failed to get namespace ID")
 		return nil, err
@@ -74,7 +70,7 @@ func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime
 	annotations := service.GetAnnotations()
 
 	// Get Secret
-	secret, err := getSecret(annotations, service, v.Client)
+	secret, err := getSecret(annotations, service, v.validator.Client)
 	if err != nil {
 		servicelog.Info("Validate Crate: Failed to get secret", "error", err)
 		return nil, err
@@ -104,7 +100,7 @@ func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime
 		return nil, fmt.Errorf("validation create failed for service %s, Please verify f.ex secret", service.GetName())
 	}
 
-	if err := utils.AddIpAddressesToPool(v.Client, annotations, addrSlice); err != nil {
+	if err := utils.AddIpAddressesToPool(v.validator.Client, annotations, addrSlice); err != nil {
 		servicelog.Info("Unable to add IP-addresses to pool", "name", service.GetName(), "pool", annotations["ipam.vitistack.io/zone"], "Error", err)
 		return nil, err
 	}
