@@ -134,7 +134,7 @@ lint-config: golangci-lint ## Verify golangci-lint linter configuration
 SYFT ?= $(LOCALBIN)/syft
 SYFT_VERSION ?= latest
 SBOM_OUTPUT_DIR ?= sbom
-SBOM_PROJECT_NAME ?= static-ip-operator
+SBOM_PROJECT_NAME ?= ipam-operator
 
 .PHONY: install-syft
 install-syft: $(SYFT) ## Install syft SBOM generator locally
@@ -145,6 +145,8 @@ $(SYFT): $(LOCALBIN)
 .PHONY: sbom-source
 sbom-source: install-syft ## Generate SBOMs for Go source code (CycloneDX + SPDX)
 	@mkdir -p $(SBOM_OUTPUT_DIR)
+	@echo "Downloading Go modules for license detection..."
+	go mod download
 	@echo "Generating source code SBOMs..."
 	$(SYFT) dir:. --source-name=$(SBOM_PROJECT_NAME) -o cyclonedx-json=$(SBOM_OUTPUT_DIR)/sbom-source.cdx.json
 	$(SYFT) dir:. --source-name=$(SBOM_PROJECT_NAME) -o spdx-json=$(SBOM_OUTPUT_DIR)/sbom-source.spdx.json
