@@ -35,6 +35,12 @@ func (v *serviceValidatorAdapter) ValidateUpdate(ctx context.Context, oldObj, ne
 
 	oldService := oldObj
 
+	// Do not validate if the service type is not LoadBalancer
+	if oldService.Spec.Type != LoadBalancer && newService.Spec.Type != LoadBalancer {
+		servicelog.Info("Validate Update: Not Validating Service due to wrong .spec.type", "name", newService.GetName(), "type", newService.Spec.Type)
+		return nil, nil
+	}
+
 	// Get the admission request from the context!
 	req, _ := admission.RequestFromContext(ctx)
 
@@ -45,12 +51,6 @@ func (v *serviceValidatorAdapter) ValidateUpdate(ctx context.Context, oldObj, ne
 	}
 
 	servicelog.Info("Validation Update: Started for Service", "name", newService.GetName())
-
-	// Do not validate if the service type is not LoadBalancer
-	if oldService.Spec.Type != LoadBalancer && newService.Spec.Type != LoadBalancer {
-		servicelog.Info("Validate Update: Not Validating Service due to wrong .spec.type", "name", newService.GetName(), "type", newService.Spec.Type)
-		return nil, nil
-	}
 
 	// Allow change of .spec.Type (corner case) after creation
 	if oldService.Spec.Type != LoadBalancer {

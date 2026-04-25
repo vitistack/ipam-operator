@@ -73,7 +73,7 @@ func AddIpAddressesToPool(d client.Client, annotations map[string]string, addres
 	return nil
 }
 
-func GetIpAddressesToPool(d client.Client, annotations map[string]string) error {
+func GetIpAddressesInPool(d client.Client, annotations map[string]string) error {
 	ipAddressPool := &metallbv1beta1.IPAddressPool{}
 	err := d.Get(context.TODO(), types.NamespacedName{
 		Name:      annotations["ipam.vitistack.io/zone"],
@@ -85,6 +85,38 @@ func GetIpAddressesToPool(d client.Client, annotations map[string]string) error 
 	}
 
 	return nil
+}
+
+func VerifyIpAddressesInPool(d client.Client, annotations map[string]string) bool {
+
+	// Get the IPAddressPool by zone name from annotations
+	ipAddressPool := &metallbv1beta1.IPAddressPool{}
+	err := d.Get(context.TODO(), types.NamespacedName{
+		Name:      annotations["ipam.vitistack.io/zone"],
+		Namespace: "metallb-system",
+	}, ipAddressPool)
+
+	// Return false if IPAddressPool does not exist
+	if err != nil {
+		return false
+	}
+
+	for addr := range strings.SplitSeq(annotations["ipam.vitistack.io/addresses"], ",") {
+		addr = strings.Trim(addr, " ")
+		if IsValidIp(addr) {
+			if IsIPv4(addr) {
+				addr = addr + "/32"
+			} else {
+				addr = addr + "/128"
+			}
+		}
+
+		if slices.Contains(ipAddressPool.Spec.Addresses, addr) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func RemoveIPAddressesFromPool(d client.Client, annotations map[string]string, addresses []string) error {
@@ -149,6 +181,7 @@ func RemoveIPAddressesFromPool(d client.Client, annotations map[string]string, a
 		if err = d.Delete(context.TODO(), ipAddressPool, &client.DeleteOptions{}); err != nil {
 			return fmt.Errorf("failed to remove ip-address pool: %v", err)
 		}
+		time.Sleep(2 * time.Second)
 		return nil
 	}
 
