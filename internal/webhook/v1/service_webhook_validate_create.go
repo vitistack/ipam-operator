@@ -35,6 +35,12 @@ func (v *serviceValidatorAdapter) ValidateCreate(ctx context.Context, obj *corev
 
 	service := obj
 
+	// Do not validate if the service type is not LoadBalancer
+	if service.Spec.Type != LoadBalancer {
+		servicelog.Info("Validate Create: Not Validating Service due to wrong .spec.type", "name", service.GetName(), "type", service.Spec.Type)
+		return nil, nil
+	}
+
 	// Get the admission request from the context!
 	req, _ := admission.RequestFromContext(ctx)
 
@@ -45,12 +51,6 @@ func (v *serviceValidatorAdapter) ValidateCreate(ctx context.Context, obj *corev
 	}
 
 	servicelog.Info("Validate Create: Started for Service", "name", service.GetName())
-
-	// Do not validate if the service type is not LoadBalancer
-	if service.Spec.Type != LoadBalancer {
-		servicelog.Info("Validate Create: Not Validating Service due to wrong .spec.type", "name", service.GetName(), "type", service.Spec.Type)
-		return nil, nil
-	}
 
 	// Get kube-system namespace uid for cluster identification
 	clusterId, err := getClusterID(v.validator.Client)
