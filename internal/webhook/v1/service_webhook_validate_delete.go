@@ -82,23 +82,10 @@ func (v *serviceValidatorAdapter) ValidateDelete(ctx context.Context, obj *corev
 	addresses := strings.Split(annotations["ipam.vitistack.io/addresses"], ",")
 
 	// Remove old addresses that are not needed anymore
-	// for index, addr := range addresses {
-	// 	servicelog.Info("Validate Delete: Remove ip-address from IPAM-API", "service", service.GetName(), "ip", addr)
-	// 	if err := removeAddressIpamAPI(addr, annotations, service, secret, clusterId, namespaceId); err != nil {
-	// 		servicelog.Info("Validate Delete: Failed to remove ip-address from IPAM-API", "service", service.GetName(), "ip", addr, "Error", err)
-	// 		if index == 1 {
-	// 			if err := updateAddressIpamAPI(addresses[0], annotations, service, secret, clusterId, namespaceId); err != nil {
-	// 				servicelog.Info("Validate Delete: Failed to rollback ip-address in IPAM-API", "service", service.GetName(), "ip", addresses[0], "Error", err)
-	// 				return nil, err
-	// 			}
-	// 		}
-	// 		return nil, err
-	// 	}
-	// }
 	for _, addr := range addresses {
 		servicelog.Info("Validate Delete: Remove ip-address from IPAM-API", "service", service.GetName(), "ip", addr)
 		err := removeAddressIpamAPI(addr, annotations, service, secret, clusterId, namespaceId)
-		if err != nil && err.Error() == "no matching address found with the provided secret, zone and address" {
+		if err != nil && err.Error() == IpamApiErrorMsgAddressNotFound {
 			servicelog.Info("Validate Delete: No matching address found in IPAM-API, skipping removal", "service", service.GetName(), "ip", addr)
 		} else if err != nil {
 			servicelog.Info("Validate Delete: Failed to remove ip-address from IPAM-API", "service", service.GetName(), "ip", addr, "Error", err)

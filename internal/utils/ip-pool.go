@@ -87,6 +87,23 @@ func GetIpAddressesInPool(d client.Client, annotations map[string]string) error 
 	return nil
 }
 
+func VerifyIpAddressPool(d client.Client, annotations map[string]string) bool {
+
+	// Get the IPAddressPool by zone name from annotations
+	ipAddressPool := &metallbv1beta1.IPAddressPool{}
+	err := d.Get(context.TODO(), types.NamespacedName{
+		Name:      annotations["ipam.vitistack.io/zone"],
+		Namespace: "metallb-system",
+	}, ipAddressPool)
+
+	// Return false if IPAddressPool does not exist
+	if err != nil {
+		return false
+	}
+
+	return true
+}
+
 func VerifyIpAddressesInPool(d client.Client, annotations map[string]string) bool {
 
 	// Get the IPAddressPool by zone name from annotations
