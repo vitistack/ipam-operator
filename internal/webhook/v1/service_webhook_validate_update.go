@@ -35,6 +35,12 @@ func (v *serviceValidatorAdapter) ValidateUpdate(ctx context.Context, oldObj, ne
 
 	oldService := oldObj
 
+	// Do not validate if the service type is not LoadBalancer
+	if oldService.Spec.Type != LoadBalancer && newService.Spec.Type != LoadBalancer {
+		servicelog.Info("Validate Update: Not Validating Service due to wrong .spec.type", "name", newService.GetName(), "type", newService.Spec.Type)
+		return nil, nil
+	}
+
 	// Get the admission request from the context!
 	req, _ := admission.RequestFromContext(ctx)
 
@@ -44,13 +50,7 @@ func (v *serviceValidatorAdapter) ValidateUpdate(ctx context.Context, oldObj, ne
 		return nil, nil
 	}
 
-	servicelog.Info("Validation Update: Started for Service", "name", newService.GetName())
-
-	// Do not validate if the service type is not LoadBalancer
-	if oldService.Spec.Type != LoadBalancer && newService.Spec.Type != LoadBalancer {
-		servicelog.Info("Validate Update: Not Validating Service due to wrong .spec.type", "name", newService.GetName(), "type", newService.Spec.Type)
-		return nil, nil
-	}
+	servicelog.Info("Validate Update: Started for Service", "name", newService.GetName())
 
 	// Allow change of .spec.Type (corner case) after creation
 	if oldService.Spec.Type != LoadBalancer {
@@ -142,25 +142,33 @@ func (v *serviceValidatorAdapter) ValidateUpdate(ctx context.Context, oldObj, ne
 		return nil, err
 	}
 
-	// Remove old addresses that are not needed anymore
+	// Remove old addresses that are not needed from IPAM-API
 	for _, addr := range removePrefixes {
-		servicelog.Info("Validate Update: Remove old ip-address", "service", newService.GetName(), "ip", addr)
-		if err := removeAddressIpamAPI(addr, oldAnnotations, oldService, oldSecret, clusterId, namespaceId); err != nil {
-			servicelog.Info("Validate Update: Failed to remove old ip-address", "service", newService.GetName(), "ip", addr, "Error", err)
+		servicelog.Info("Validate Update: Remove old ip-address from IPAM-API", "service", newService.GetName(), "ip", addr)
+
+		err := removeAddressIpamAPI(addr, oldAnnotations, oldService, oldSecret, clusterId, namespaceId)
+		if err != nil && err.Error() == IpamApiErrorMsgAddressNotFound {
+			servicelog.Info("Validate Update: No matching address found in IPAM-API, skipping removal", "service", newService.GetName(), "ip", addr)
+		} else if err != nil {
+			servicelog.Info("Validate Update: Failed to remove old ip-address from IPAM-API", "service", newService.GetName(), "ip", addr, "Error", err)
 		}
 	}
 
 	// Update Metallb AddressPool
 	if len(newPrefixes) > 0 {
-		servicelog.Info("Validate Update: Add prefixes to Metallb Addresspool", "name", newService.GetName(), "pool", oldAnnotations["ipam.vitistack.io/zone"])
+		servicelog.Info("Validate Update: Add prefixes to Metallb Addresspool", "name", newService.GetName(), "pool", newAnnotations["ipam.vitistack.io/zone"], "prefixes", newPrefixes)
 		if err := utils.AddIpAddressesToPool(v.validator.Client, newAnnotations, newPrefixes); err != nil {
 			servicelog.Info("Validate Update: Unable to add new IP-addresses to pool", "name", newService.GetName(), "pool", newAnnotations["ipam.vitistack.io/zone"], "Error", err)
 		}
 	}
 	if len(removePrefixes) > 0 {
-		servicelog.Info("Validate Update: Remove out-dated prefixes from Metallb Addresspool", "name", newService.GetName(), "pool", oldAnnotations["ipam.vitistack.io/zone"])
-		if err := utils.RemoveIPAddressesFromPool(v.validator.Client, oldAnnotations, removePrefixes); err != nil {
-			servicelog.Info("Validate Update: Unable to remove old IP-addresses from pool", "name", newService.GetName(), "pool", oldAnnotations["ipam.vitistack.io/zone"], "Error", err)
+		if utils.VerifyIpAddressPool(v.validator.Client, oldAnnotations) {
+			servicelog.Info("Validate Update: Remove old prefixes from Metallb Addresspool", "name", newService.GetName(), "pool", oldAnnotations["ipam.vitistack.io/zone"], "prefixes", removePrefixes)
+			if err := utils.RemoveIPAddressesFromPool(v.validator.Client, oldAnnotations, removePrefixes); err != nil {
+				servicelog.Info("Validate Update: Unable to remove old IP-addresses from pool", "name", newService.GetName(), "pool", oldAnnotations["ipam.vitistack.io/zone"], "Error", err)
+			}
+		} else {
+			servicelog.Info("Validate Update: Old IP-addresses were not found in MetallB IPAddressPool, skipping removal", "name", newService.GetName(), "pool", oldAnnotations["ipam.vitistack.io/zone"])
 		}
 	}
 
