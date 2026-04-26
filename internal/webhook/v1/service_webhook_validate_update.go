@@ -156,14 +156,14 @@ func (v *serviceValidatorAdapter) ValidateUpdate(ctx context.Context, oldObj, ne
 
 	// Update Metallb AddressPool
 	if len(newPrefixes) > 0 {
-		servicelog.Info("Validate Update: Add prefixes to Metallb Addresspool", "name", newService.GetName(), "pool", oldAnnotations["ipam.vitistack.io/zone"])
+		servicelog.Info("Validate Update: Add prefixes to Metallb Addresspool", "name", newService.GetName(), "pool", newAnnotations["ipam.vitistack.io/zone"], "prefixes", newPrefixes)
 		if err := utils.AddIpAddressesToPool(v.validator.Client, newAnnotations, newPrefixes); err != nil {
 			servicelog.Info("Validate Update: Unable to add new IP-addresses to pool", "name", newService.GetName(), "pool", newAnnotations["ipam.vitistack.io/zone"], "Error", err)
 		}
 	}
 	if len(removePrefixes) > 0 {
 		if utils.VerifyIpAddressPool(v.validator.Client, oldAnnotations) {
-			servicelog.Info("Validate Update: Remove out-dated prefixes from Metallb Addresspool", "name", newService.GetName(), "pool", oldAnnotations["ipam.vitistack.io/zone"])
+			servicelog.Info("Validate Update: Remove old prefixes from Metallb Addresspool", "name", newService.GetName(), "pool", oldAnnotations["ipam.vitistack.io/zone"], "prefixes", removePrefixes)
 			if err := utils.RemoveIPAddressesFromPool(v.validator.Client, oldAnnotations, removePrefixes); err != nil {
 				servicelog.Info("Validate Update: Unable to remove old IP-addresses from pool", "name", newService.GetName(), "pool", oldAnnotations["ipam.vitistack.io/zone"], "Error", err)
 			}
