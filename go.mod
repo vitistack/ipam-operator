@@ -7,7 +7,7 @@ godebug default=go1.26.2
 require (
 	github.com/onsi/ginkgo/v2 v2.28.3
 	github.com/onsi/gomega v1.40.0
-	github.com/vitistack/ipam-api v1.0.34
+	github.com/vitistack/ipam-api v1.0.35
 	go.universe.tf/metallb v0.15.3
 	k8s.io/api v0.35.3
 	k8s.io/apimachinery v0.35.3
@@ -74,7 +74,7 @@ require (
 	github.com/spf13/viper v1.21.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect
+	go.mongodb.org/mongo-driver/v2 v2.6.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0 // indirect
 	go.opentelemetry.io/otel v1.43.0 // indirect
