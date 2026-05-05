@@ -6,7 +6,7 @@ godebug default=go1.26.2
 
 require (
 	github.com/onsi/ginkgo/v2 v2.28.1
-	github.com/onsi/gomega v1.39.0
+	github.com/onsi/gomega v1.40.0
 	github.com/vitistack/ipam-api v1.0.34
 	go.universe.tf/metallb v0.15.3
 	k8s.io/api v0.35.3
